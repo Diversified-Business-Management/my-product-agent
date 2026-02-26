@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI PM | RAG Notebook</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root { --primary: #1F4E79; --primary-light: #2E75B6; --accent: #FF6B35; --bg: #F8FAFC; --card: #FFF; --text: #1E293B; --text-light: #64748B; --border: #E2E8F0; --code-bg: #1E293B; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+.header { background: var(--primary); color: white; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 20px; }
+.header select { padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px; }
+.header select option { background: var(--primary); }
+.container { max-width: 900px; margin: 24px auto; padding: 0 24px; }
+.cell { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.cell-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: #F1F5F9; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-light); }
+.cell-type { font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.cell-body { padding: 16px; }
+.cell-body.markdown { font-size: 14px; line-height: 1.8; }
+.cell-body.markdown h2 { font-size: 18px; color: var(--primary); margin-bottom: 8px; }
+.cell-body.markdown h3 { font-size: 15px; color: var(--primary-light); margin: 12px 0 6px; }
+.cell-body.markdown p { margin-bottom: 10px; }
+.cell-body.markdown ul { padding-left: 20px; margin-bottom: 10px; }
+.cell-body.markdown li { margin-bottom: 4px; }
+.cell-body.markdown code { background: #F1F5F9; padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+.code-block { background: var(--code-bg); color: #E2E8F0; padding: 16px; border-radius: 4px; font-family: 'Fira Code', 'SF Mono', monospace; font-size: 13px; line-height: 1.6; overflow-x: auto; white-space: pre; }
+.output { padding: 12px 16px; background: #FFFBEB; border-top: 1px solid #FEF3C7; font-family: monospace; font-size: 13px; color: #92400E; }
+.query-box { display: flex; gap: 8px; margin-bottom: 16px; }
+.query-input { flex: 1; padding: 12px 16px; border: 2px solid var(--primary-light); border-radius: 8px; font-size: 14px; outline: none; }
+.query-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(46,117,182,0.1); }
+.query-btn { padding: 12px 24px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.query-btn:hover { background: var(--primary-light); }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 12px; }
+.template-card { padding: 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 13px; }
+.template-card:hover { border-color: var(--primary-light); background: #F0F7FF; }
+.template-card strong { color: var(--primary); display: block; margin-bottom: 4px; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+.tag-survey { background: #DBEAFE; color: #1E40AF; }
+.tag-interview { background: #D1FAE5; color: #065F46; }
+.tag-competitive { background: #FEE2E2; color: #991B1B; }
+.tag-all { background: #F3E8FF; color: #6B21A8; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>RAG Notebook</h1>
+  <div style="display:flex;gap:12px;align-items:center">
+    <select id="projectSelect">
+      <option value="merchandising">Project: Merchandising</option>
+      <option value="agentic_commerce">Project: Agentic Commerce</option>
+    </select>
+    <span style="font-size:12px;opacity:0.7">Data Master</span>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Cell 1: Introduction -->
+  <div class="cell">
+    <div class="cell-header"><span class="cell-type">Markdown</span><span>Cell 1</span></div>
+    <div class="cell-body markdown">
+      <h2>Project RAG Notebook</h2>
+      <p>This notebook provides an interactive interface to query all project data using Retrieval Augmented Generation (RAG). It searches across survey responses, interview transcripts, competitive intelligence, and scored capabilities to deliver grounded, cited answers.</p>
+      <h3>Data Sources</h3>
+      <ul>
+        <li><span class="tag tag-survey">Survey</span> 9 customer survey responses with capability interests and priorities</li>
+        <li><span class="tag tag-interview">Interview</span> 4 customer interview transcripts with extracted insights</li>
+        <li><span class="tag tag-competitive">Competitive</span> SWOT analysis and feature gap data for 6 competitors</li>
+        <li><span class="tag tag-all">Scoring</span> 35 scored capabilities across 5 categories</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Cell 2: Query Interface -->
+  <div class="cell">
+    <div class="cell-header"><span class="cell-type">Interactive Query</span><span>Cell 2</span></div>
+    <div class="cell-body">body">
+      <div class="query-box">
+        <input class="query-input" type="text" id="queryInput" placeholder="Ask anything about your project data..." value="What are the top 3 pain points customers mentioned about dynamic pricing?">
+        <button class="query-btn" onclick="runQuery()">Query</button>
+      </div>
+      <h3 style="font-size:13px;color:var(--text-light);margin-bottom:8px">Quick Query Templates:</h3>
+      <div class="template-grid">
+        <div class="template-card" onclick="setQuery('What are the most requested capabilities and why?')">
+          <strong>Capability Demand</strong>
+          Analyze top capability requests across all survey responses
+        </div>
+        <div class="template-card" onclick="setQuery('Summarize key pain points from customer interviews')">
+          <strong>Pain Point Summary</strong>
+          Extract and rank pain points from interview transcripts
+        </div>
+        <div class="template-card" onclick="setQuery('How do we compare to Salesforce CPQ on dynamic pricing?')">
+          <strong>Competitive Gap</strong>
+          Compare specific capabilities against competitor offerings
+        </div>
+        <div class="template-card" onclick="setQuery('Generate user stories for the top 5 HIGH priority capabilities')">
+          <strong>User Stories</strong>
+          Auto-generate user stories from research data
+        </div>
+        <div class="template-card" onclick="setQuery('What pricing models do customers prefer and why?')">
+          <strong>Pricing Insights</strong>
+          Analyze pricing preferences from surveys and interviews
+        </div>
+        <div class="template-card" onclick="setQuery('Which customers are willing to be design partners?')">
+          <strong>Design Partners</strong>
+          Identify potential design partners from interview data
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cell 3: RAG Pipeline Code -->
+  <div class="cell">
+    <div class="cell-header"><span class="cell-type">Code</span><span>Cell 3 - RAG Pipeline</span></div>
+    <div class="cell-body">
+      <div class="code-block">// RAG Pipeline Configuration
+const RAG_CONFIG = {
+  project: document.getElementById('projectSelect').value,
+  embedding_model: 'text-embedding-3-small',
+  llm_model: 'claude-sonnet-4-5-20250929',
+  chunk_size: 400,
+  chunk_overlap: 50,
+  top_k: 10,
+  similarity_threshold: 0.75,
+
+  data_sources: {
+    surveys: { sheet: '{project}_surveys', weight: 1.0 },
+    interviews: { sheet: '{project}_interviews', weight: 1.2 },
+    competitive: { sheet: '{project}_competitive', weight: 0.8 },
+    scoring: { sheet: '{project}_scoring', weight: 1.0 }
+  },
+
+  metadata_filters: {
+    date_range: 'last_90_days',
+    min_relevance: 0.7,
+    include_sources: true
+  }
+};
+
+// Step 1: Retrieve relevant chunks
+async function retrieveContext(query, config) {
+  const embedding = await embed(query, config.embedding_model);
+  const chunks = await vectorSearch(embedding, {
+    top_k: config.top_k,
+    threshold: config.similarity_threshold,
+    filters: { project: config.project }
+  });
+  return chunks;
+}
+
+// Step 2: Build prompt with retrieved context
+function buildPrompt(query, chunks) {
+  const context = chunks.map((c, i) =&gt;
+    `[Source ${i+1}: ${c.source_type} | ${c.date}]\n${c.text}`
+  ).join('\n\n');
+
+  return `You are an expert product manager analyst. Answer the following question
+using ONLY the provided context. Cite sources using [Source N] notation.
+
+CONTEXT:
+${context}
+
+QUESTION: ${query}
+
+Provide a structured, actionable answer with citations.`;
+}
+
+// Step 3: Generate answer
+async function generateAnswer(prompt, config) {
+  const response = await llm.complete({
+    model: config.llm_model,
+    prompt: prompt,
+    max_tokens: 2000,
+    temperature: 0.2
+  });
+  return response;
+}
+
+console.log('RAG Pipeline initialized for project:', RAG_CONFIG.project);</div>
+    </div>
+    <div class="output">RAG Pipeline initialized for project: merchandising</div>
+  </div>
+
+  <!-- Cell 4: Example Query Result -->
+  <div class="cell">
+    <div class="cell-header"><span class="cell-type">Query Result</span><span>Cell 4</span></div>
+    <div class="cell-body markdown" id="queryResult">
+      <h3>Query: "What are the top 3 pain points customers mentioned about dynamic pricing?"</h3>
+      <p>Based on analysis of 9 survey responses and 4 interview transcripts, the top 3 pain points around dynamic pricing are:</p>
+      <p><strong>1. Pricing Model Rigidity</strong> (mentioned by 7/9 respondents)<br>
+      Customers report that current pricing systems cannot handle the complexity of hybrid models combining subscriptions, usage-based, and one-time charges. <em>"Our SAP setup is too rigid for subscription-hybrid models"</em> [Source 1: Interview, Caterpillar, Feb 20]. Survey data confirms 89% of respondents rated dynamic pricing as their top capability need [Source 3: Survey Aggregation].</p>
+      <p><strong>2. Geo-Pricing Complexity</strong> (mentioned by 5/9 respondents)<br>
+      Multi-currency and region-specific pricing rules are a major challenge. Companies operating globally need real-time pricing adjustments based on market conditions, tax jurisdictions, and competitive positioning [Source 2: Interview, Siemens, Feb 18]. 44% of survey respondents specifically requested geo-pricing capabilities [Source 4: Survey Data].</p>
+      <p><strong>3. Volume Discount Management</strong> (mentioned by 4/9 respondents)<br>
+      Enterprise customers struggle with tiered volume discounts that need to account for contract terms, commitment levels, and cross-product bundling. The current manual processes lead to revenue leakage estimated at 3-5% [Source 5: Interview, GE Digital, Feb 15].</p>
+      <p style="font-size:12px;color:var(--text-light);margin-top:16px"><em>Sources: 3 interviews, 9 surveys | Confidence: High | Last updated: Feb 23, 2026</em></p>
+    </div>
+  </div>
+
+  <!-- Cell 5: Data Summary -->
+  <div class="cell">
+    <div class="cell-header"><span class="cell-type">Code</span><span>Cell 5 - Data Summary Statistics</span></div>
+    <div class="cell-body">
+      <div class="code-block">// Project Data Summary
+const summary = {
+  project: 'Merchandising',
+  data_sources: {
+    survey_responses: 9,
+    interview_transcripts: 4,
+    competitive_profiles: 6,
+    scored_capabilities: 35
+  },
+  vector_store: {
+    total_chunks: 1247,
+    avg_chunk_size: 312,
+    embedding_dimensions: 1536,
+    index_type: 'HNSW'
+  },
+  coverage: {
+    pain_points_extracted: 23,
+    feature_requests_identified: 41,
+    competitor_mentions: 18,
+    design_partner_candidates: 3
+  },
+  last_sync: '2026-02-23T08:00:00Z'
+};
+
+console.table(summary.data_sources);
+console.table(summary.coverage);</div>
+    </div>
+    <div class="output">
+survey_responses: 9 | interview_transcripts: 4 | competitive_profiles: 6 | scored_capabilities: 35
+pain_points: 23 | feature_requests: 41 | competitor_mentions: 18 | design_partners: 3</div>
+  </div>
+</div>
+
+<script>
+function setQuery(q) { document.getElementById('queryInput').value = q; }
+function runQuery() {
+  const q = document.getElementById('queryInput').value;
+  const result = document.getElementById('queryResult');
+  result.innerHTML = '<h3>Query: "' + q + '"</h3><p style="color:var(--text-light);font-style:italic">Processing query through RAG pipeline... In production, this connects to the vector store and LLM API via n8n webhook.</p><p style="margin-top:12px">To enable live queries, configure the OpenAI/Claude API key in the n8n workflow and connect the vector database.</p>';
+}
+</script>
+</body>
+</html>
