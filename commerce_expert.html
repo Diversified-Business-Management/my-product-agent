@@ -250,11 +250,14 @@
         </div>
 
         <div class="drop-zone" id="dropZone">
-            <input type="file" id="fileInput" multiple accept=".txt,.md,.html,.htm,.csv,.json,.xml,.log,.rtf,.yaml,.yml">
+            <input type="file" id="fileInput" multiple accept=".txt,.md,.html,.htm,.csv,.json,.xml,.log,.rtf,.yaml,.yml,.pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls">
             <div class="drop-icon">&#128195;</div>
             <h3>Drop files here or click to browse</h3>
-            <p>Upload documentation files to feed the Commerce Expert's knowledge base</p>
+            <p>Upload any documentation file â text, PDF, Word, PowerPoint, and more</p>
             <div class="file-types">
+                <span class="file-type-badge">.pdf</span>
+                <span class="file-type-badge">.docx</span>
+                <span class="file-type-badge">.pptx</span>
                 <span class="file-type-badge">.txt</span>
                 <span class="file-type-badge">.md</span>
                 <span class="file-type-badge">.html</span>
@@ -287,7 +290,14 @@
         <div class="upload-log" id="uploadLog"></div>
     </div>
 
+    <!-- File conversion libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
+        // Set PDF.js worker
+        if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
         // ==================== CONFIG ====================
         const WEBHOOK_URL = 'https://edenger.app.n8n.cloud/webhook/commerce-expert';
         const PINECONE_HOST = 'https://commerce-expert-8t9sj7i.svc.aped-4627-b74a.pinecone.io';
@@ -472,9 +482,106 @@
         function stripHtmlTags(html) {
             const tmp = document.createElement('div');
             tmp.innerHTML = html;
-            // Remove script and style elements
             tmp.querySelectorAll('script, style, nav, footer, header').forEach(el => el.remove());
             return tmp.textContent || tmp.innerText || '';
+        }
+
+        // ==================== FILE CONVERTERS ====================
+        async function extractTextFromPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                const pageText = content.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n\n';
+            }
+            return fullText.trim();
+        }
+
+        async function extractTextFromDOCX(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+            return result.value;
+        }
+
+        async function extractTextFromPPTX(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            let allText = '';
+            // PPTX slides are in ppt/slides/slide1.xml, slide2.xml, etc.
+            const slideFiles = Object.keys(zip.files)
+                .filter(name => name.match(/^ppt\/slides\/slide\d+\.xml$/))
+                .sort((a, b) => {
+                    const numA = parseInt(a.match(/slide(\d+)/)[1]);
+                    const numB = parseInt(b.match(/slide(\d+)/)[1]);
+                    return numA - numB;
+                });
+            for (const slidePath of slideFiles) {
+                const xml = await zip.files[slidePath].async('text');
+                // Extract text from XML tags (a:t elements contain the text)
+                const textMatches = xml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) || [];
+                const slideText = textMatches.map(m => m.replace(/<[^>]+>/g, '')).join(' ');
+                if (slideText.trim()) allText += slideText.trim() + '\n\n';
+            }
+            return allText.trim();
+        }
+
+        async function extractTextFromXLSX(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            // Read shared strings
+            let sharedStrings = [];
+            const sst = zip.files['xl/sharedStrings.xml'];
+            if (sst) {
+                const xml = await sst.async('text');
+                const matches = xml.match(/<t[^>]*>([^<]*)<\/t>/g) || [];
+                sharedStrings = matches.map(m => m.replace(/<[^>]+>/g, ''));
+            }
+            // Read sheets
+            let allText = '';
+            const sheetFiles = Object.keys(zip.files)
+                .filter(name => name.match(/^xl\/worksheets\/sheet\d+\.xml$/))
+                .sort();
+            for (const sheetPath of sheetFiles) {
+                const xml = await sheetPath ? await zip.files[sheetPath].async('text') : '';
+                // Extract cell values
+                const cells = xml.match(/<v>([^<]*)<\/v>/g) || [];
+                const values = cells.map(c => c.replace(/<[^>]+>/g, ''));
+                if (values.length) allText += values.join(' ') + '\n';
+            }
+            return allText.trim() || sharedStrings.join(' ');
+        }
+
+        async function readFileContent(file) {
+            const name = file.name.toLowerCase();
+            if (name.endsWith('.pdf')) {
+                if (!window.pdfjsLib) throw new Error('PDF.js library not loaded. Please refresh and try again.');
+                logMessage(`Converting PDF: ${file.name}...`, 'info');
+                return await extractTextFromPDF(file);
+            }
+            if (name.endsWith('.docx') || name.endsWith('.doc')) {
+                if (!window.mammoth) throw new Error('Mammoth.js library not loaded. Please refresh and try again.');
+                logMessage(`Converting Word doc: ${file.name}...`, 'info');
+                return await extractTextFromDOCX(file);
+            }
+            if (name.endsWith('.pptx') || name.endsWith('.ppt')) {
+                if (!window.JSZip) throw new Error('JSZip library not loaded. Please refresh and try again.');
+                logMessage(`Converting PowerPoint: ${file.name}...`, 'info');
+                return await extractTextFromPPTX(file);
+            }
+            if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+                if (!window.JSZip) throw new Error('JSZip library not loaded. Please refresh and try again.');
+                logMessage(`Converting Excel: ${file.name}...`, 'info');
+                return await extractTextFromXLSX(file);
+            }
+            // Default: read as text
+            let text = await readFileAsText(file);
+            if (name.match(/\.html?$/) || text.trim().startsWith('<')) {
+                text = stripHtmlTags(text);
+            }
+            return text;
         }
 
         async function startUpload() {
@@ -507,11 +614,7 @@
                 const file = files[i];
                 try {
                     logMessage(`Reading file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
-                    let text = await readFileAsText(file);
-                    // Strip HTML if it looks like HTML
-                    if (file.name.match(/\.html?$/i) || text.trim().startsWith('<')) {
-                        text = stripHtmlTags(text);
-                    }
+                    let text = await readFileContent(file);
                     const fileSrc = sourceLabel !== 'Unknown Source' ? `${sourceLabel} - ${file.name}` : file.name;
                     const chunks = chunkText(text, fileSrc);
                     allChunks = allChunks.concat(chunks);
