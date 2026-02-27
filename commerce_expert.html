@@ -16,6 +16,17 @@
         .top-bar .status-dot { width: 7px; height: 7px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
+        /* Mode tabs */
+        .mode-tabs { display: flex; gap: 4px; max-width: 900px; width: 100%; margin: 16px auto 0; padding: 0 24px; }
+        .mode-tab {
+            padding: 10px 20px; border-radius: 10px 10px 0 0; cursor: pointer; font-size: 0.85rem; font-weight: 500;
+            border: 1px solid rgba(148, 163, 184, 0.1); border-bottom: none; transition: all 0.2s;
+            background: rgba(30, 41, 59, 0.4); color: #64748b;
+        }
+        .mode-tab:hover { color: #94a3b8; background: rgba(30, 41, 59, 0.6); }
+        .mode-tab.active { background: rgba(30, 41, 59, 0.8); color: #f59e0b; border-color: rgba(249, 115, 22, 0.2); }
+        .mode-tab .tab-icon { margin-right: 6px; }
+
         .chat-container { flex: 1; max-width: 900px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; padding: 0 24px; overflow: hidden; }
 
         .welcome-section { text-align: center; padding: 40px 20px 24px; }
@@ -99,9 +110,77 @@
         .confidence-medium { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
         .confidence-low { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
 
+        /* Upload panel styles */
+        .upload-panel { display: none; flex: 1; max-width: 900px; width: 100%; margin: 0 auto; padding: 24px; overflow-y: auto; }
+        .upload-panel.active { display: flex; flex-direction: column; gap: 20px; }
+
+        .drop-zone {
+            border: 2px dashed rgba(249, 115, 22, 0.3); border-radius: 16px; padding: 48px 24px; text-align: center;
+            background: rgba(30, 41, 59, 0.5); transition: all 0.3s; cursor: pointer; position: relative;
+        }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #f59e0b; background: rgba(249, 115, 22, 0.05); }
+        .drop-zone .drop-icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .drop-zone h3 { font-size: 1.1rem; color: #f1f5f9; margin-bottom: 6px; }
+        .drop-zone p { font-size: 0.82rem; color: #64748b; }
+        .drop-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .file-types { display: flex; gap: 6px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+        .file-type-badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 4px; background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.15); }
+
+        .or-divider { text-align: center; color: #475569; font-size: 0.8rem; position: relative; }
+        .or-divider::before, .or-divider::after { content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: rgba(148, 163, 184, 0.1); }
+        .or-divider::before { left: 0; }
+        .or-divider::after { right: 0; }
+
+        .paste-area textarea {
+            width: 100%; min-height: 140px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 12px; padding: 14px; color: #e2e8f0; font-size: 0.85rem; font-family: 'SF Mono', 'Fira Code', monospace;
+            resize: vertical; outline: none; line-height: 1.6;
+        }
+        .paste-area textarea:focus { border-color: rgba(249, 115, 22, 0.4); box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.08); }
+        .paste-area textarea::placeholder { color: #475569; }
+        .paste-area label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 8px; font-weight: 500; }
+
+        .upload-options { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .source-input { flex: 1; min-width: 200px; padding: 10px 14px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; color: #e2e8f0; font-size: 0.85rem; outline: none; }
+        .source-input:focus { border-color: rgba(249, 115, 22, 0.4); }
+        .source-input::placeholder { color: #475569; }
+        .upload-btn {
+            padding: 10px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg, #f59e0b, #f97316);
+            color: white; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+        }
+        .upload-btn:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); }
+        .upload-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* Progress */
+        .upload-progress { display: none; }
+        .upload-progress.active { display: block; }
+        .progress-bar-outer { width: 100%; height: 8px; background: rgba(148, 163, 184, 0.1); border-radius: 4px; overflow: hidden; }
+        .progress-bar-inner { height: 100%; background: linear-gradient(90deg, #f59e0b, #f97316); border-radius: 4px; transition: width 0.3s; width: 0%; }
+        .progress-text { font-size: 0.78rem; color: #94a3b8; margin-top: 8px; display: flex; justify-content: space-between; }
+
+        /* Upload log */
+        .upload-log { max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 12px; font-size: 0.75rem; font-family: 'SF Mono', monospace; line-height: 1.8; }
+        .upload-log::-webkit-scrollbar { width: 4px; }
+        .upload-log::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.2); border-radius: 2px; }
+        .log-success { color: #4ade80; }
+        .log-error { color: #f87171; }
+        .log-info { color: #94a3b8; }
+        .log-warn { color: #fbbf24; }
+
+        /* Stats bar */
+        .upload-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+        .stat-card {
+            flex: 1; min-width: 120px; padding: 14px 16px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(148, 163, 184, 0.1);
+            border-radius: 12px; text-align: center;
+        }
+        .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; color: #f59e0b; }
+        .stat-card .stat-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
         @media (max-width: 600px) {
             .suggestions { grid-template-columns: 1fr; }
             .message { max-width: 95%; }
+            .upload-options { flex-direction: column; }
+            .source-input { min-width: unset; width: 100%; }
         }
     </style>
 </head>
@@ -113,11 +192,18 @@
         <div class="status"><span class="status-dot"></span> Online</div>
     </div>
 
-    <div class="chat-container">
+    <!-- Mode tabs -->
+    <div class="mode-tabs">
+        <div class="mode-tab active" onclick="switchMode('chat')"><span class="tab-icon">&#128172;</span> Chat</div>
+        <div class="mode-tab" onclick="switchMode('upload')"><span class="tab-icon">&#128228;</span> Upload Documents</div>
+    </div>
+
+    <!-- CHAT MODE -->
+    <div class="chat-container" id="chatPanel">
         <div id="welcomeSection" class="welcome-section">
             <div class="icon">&#129302;</div>
             <h2>Zuora Commerce Expert</h2>
-            <p>Ask me anything about Zuora Commerce â catalog architecture, subscription billing, payment processing, CPQ flows, pricing models, API integrations, and more. I have access to the full documentation library.</p>
+            <p>Ask me anything about Zuora Commerce &mdash; catalog architecture, subscription billing, payment processing, CPQ flows, pricing models, API integrations, and more. I have access to the full documentation library.</p>
         </div>
 
         <div id="suggestionsGrid" class="suggestions">
@@ -155,17 +241,80 @@
         </div>
     </div>
 
+    <!-- UPLOAD MODE -->
+    <div class="upload-panel" id="uploadPanel">
+        <div class="upload-stats">
+            <div class="stat-card"><div class="stat-value" id="statChunks">0</div><div class="stat-label">Chunks uploaded</div></div>
+            <div class="stat-card"><div class="stat-value" id="statFiles">0</div><div class="stat-label">Files processed</div></div>
+            <div class="stat-card"><div class="stat-value" id="statErrors">0</div><div class="stat-label">Errors</div></div>
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" multiple accept=".txt,.md,.html,.htm,.csv,.json,.xml,.log,.rtf,.yaml,.yml">
+            <div class="drop-icon">&#128195;</div>
+            <h3>Drop files here or click to browse</h3>
+            <p>Upload documentation files to feed the Commerce Expert's knowledge base</p>
+            <div class="file-types">
+                <span class="file-type-badge">.txt</span>
+                <span class="file-type-badge">.md</span>
+                <span class="file-type-badge">.html</span>
+                <span class="file-type-badge">.csv</span>
+                <span class="file-type-badge">.json</span>
+                <span class="file-type-badge">.xml</span>
+            </div>
+        </div>
+
+        <div class="or-divider">or paste text directly</div>
+
+        <div class="paste-area">
+            <label>Paste raw documentation text</label>
+            <textarea id="pasteInput" placeholder="Paste Zuora documentation content here...&#10;&#10;Tip: You can paste entire web pages, API docs, knowledge base articles, etc."></textarea>
+        </div>
+
+        <div class="upload-options">
+            <input type="text" class="source-input" id="sourceLabel" placeholder="Source label (e.g. Zuora Billing API Docs)">
+            <button class="upload-btn" id="uploadBtn" onclick="startUpload()">&#128640; Upload to Vector DB</button>
+        </div>
+
+        <div class="upload-progress" id="uploadProgress">
+            <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+            <div class="progress-text">
+                <span id="progressLabel">Preparing...</span>
+                <span id="progressPct">0%</span>
+            </div>
+        </div>
+
+        <div class="upload-log" id="uploadLog"></div>
+    </div>
+
     <script>
+        // ==================== CONFIG ====================
+        const WEBHOOK_URL = 'https://edenger.app.n8n.cloud/webhook/commerce-expert';
+        const PINECONE_HOST = 'https://commerce-expert-8t9sj7i.svc.aped-4627-b74a.pinecone.io';
+        const PINECONE_API_KEY = 'pcsk_u6iTp_D9KaZt6QbWeYK9jby58QbZUjCxZRDQzjoqLFWWXxYJ9z393mArEWV98A1YAfNpY';
+        const CHUNK_SIZE = 1500;  // words per chunk
+        const CHUNK_OVERLAP = 200; // word overlap
+
+        // ==================== MODE SWITCHING ====================
+        function switchMode(mode) {
+            document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+            if (mode === 'chat') {
+                document.querySelectorAll('.mode-tab')[0].classList.add('active');
+                document.getElementById('chatPanel').style.display = 'flex';
+                document.getElementById('uploadPanel').classList.remove('active');
+            } else {
+                document.querySelectorAll('.mode-tab')[1].classList.add('active');
+                document.getElementById('chatPanel').style.display = 'none';
+                document.getElementById('uploadPanel').classList.add('active');
+            }
+        }
+
+        // ==================== CHAT MODE ====================
         const messagesEl = document.getElementById('messages');
         const userInput = document.getElementById('userInput');
         const sendBtn = document.getElementById('sendBtn');
         const welcomeSection = document.getElementById('welcomeSection');
         const suggestionsGrid = document.getElementById('suggestionsGrid');
-
-        // n8n webhook URL for the Commerce Expert workflow
-        // Replace this with your actual n8n webhook URL once the workflow is created
-        const WEBHOOK_URL = 'https://edenger.app.n8n.cloud/webhook/commerce-expert';
-
         let conversationHistory = [];
         let isProcessing = false;
 
@@ -176,140 +325,238 @@
         }
 
         function handleKey(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-            // Auto-resize textarea
-            setTimeout(() => {
-                userInput.style.height = 'auto';
-                userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
-            }, 0);
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+            setTimeout(() => { userInput.style.height = 'auto'; userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px'; }, 0);
         }
 
-        function hideWelcome() {
-            welcomeSection.style.display = 'none';
-            suggestionsGrid.style.display = 'none';
-        }
+        function hideWelcome() { welcomeSection.style.display = 'none'; suggestionsGrid.style.display = 'none'; }
 
         function addMessage(role, content, sources, confidence) {
             const div = document.createElement('div');
             div.className = `message ${role}`;
             const avatar = role === 'assistant' ? '&#129302;' : '&#128100;';
-
             let sourcesHTML = '';
             if (role === 'assistant' && sources && sources.length > 0) {
                 const confClass = confidence === 'high' ? 'confidence-high' : confidence === 'medium' ? 'confidence-medium' : 'confidence-low';
                 const confLabel = confidence ? confidence.charAt(0).toUpperCase() + confidence.slice(1) : '';
-                sourcesHTML = `
-                    <div class="sources-section">
-                        <div class="sources-header">
-                            &#128196; Sources referenced
-                            ${confLabel ? `<span class="confidence-badge ${confClass}">${confLabel} confidence</span>` : ''}
-                        </div>
-                        <div class="sources-list">
-                            ${sources.map(s => `<span class="source-chip">${s}</span>`).join('')}
-                        </div>
-                    </div>
-                `;
+                sourcesHTML = `<div class="sources-section"><div class="sources-header">&#128196; Sources referenced ${confLabel ? `<span class="confidence-badge ${confClass}">${confLabel} confidence</span>` : ''}</div><div class="sources-list">${sources.map(s => `<span class="source-chip">${s}</span>`).join('')}</div></div>`;
             }
-
-            div.innerHTML = `
-                <div class="avatar">${avatar}</div>
-                <div class="bubble">${formatContent(content)}${sourcesHTML}</div>
-            `;
+            div.innerHTML = `<div class="avatar">${avatar}</div><div class="bubble">${formatContent(content)}${sourcesHTML}</div>`;
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
             return div;
         }
 
         function addTypingIndicator() {
-            const div = document.createElement('div');
-            div.className = 'message assistant';
-            div.id = 'typingIndicator';
-            div.innerHTML = `
-                <div class="avatar">&#129302;</div>
-                <div class="bubble">
-                    <div class="typing-indicator"><span></span><span></span><span></span></div>
-                </div>
-            `;
-            messagesEl.appendChild(div);
-            messagesEl.scrollTop = messagesEl.scrollHeight;
+            const div = document.createElement('div'); div.className = 'message assistant'; div.id = 'typingIndicator';
+            div.innerHTML = `<div class="avatar">&#129302;</div><div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+            messagesEl.appendChild(div); messagesEl.scrollTop = messagesEl.scrollHeight;
         }
-
-        function removeTypingIndicator() {
-            const el = document.getElementById('typingIndicator');
-            if (el) el.remove();
-        }
+        function removeTypingIndicator() { const el = document.getElementById('typingIndicator'); if (el) el.remove(); }
 
         function formatContent(text) {
-            // Basic markdown-like formatting
-            return text
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/`(.*?)`/g, '<code>$1</code>')
-                .replace(/\n- /g, '\nâ¢ ')
-                .replace(/\n\d+\. /g, (match) => '\n' + match.trim() + ' ')
-                .split('\n\n').map(p => `<p>${p}</p>`).join('')
-                .replace(/\n/g, '<br>');
+            return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n- /g, '\n\u2022 ').replace(/\n\d+\. /g, (m) => '\n' + m.trim() + ' ')
+                .split('\n\n').map(p => `<p>${p}</p>`).join('').replace(/\n/g, '<br>');
         }
 
         async function sendMessage() {
             const text = userInput.value.trim();
             if (!text || isProcessing) return;
-
-            hideWelcome();
-            isProcessing = true;
-            sendBtn.disabled = true;
-
-            addMessage('user', text);
-            userInput.value = '';
-            userInput.style.height = 'auto';
-
+            hideWelcome(); isProcessing = true; sendBtn.disabled = true;
+            addMessage('user', text); userInput.value = ''; userInput.style.height = 'auto';
             conversationHistory.push({ role: 'user', content: text });
-
             addTypingIndicator();
-
             try {
-                // Try the n8n webhook first
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
-
-                const response = await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question: text,
-                        history: conversationHistory.slice(-10) // Last 10 messages for context
-                    }),
-                    signal: controller.signal
-                });
-
+                const timeoutId = setTimeout(() => controller.abort(), 120000);
+                const response = await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: text, history: conversationHistory.slice(-10) }), signal: controller.signal });
                 clearTimeout(timeoutId);
-
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
                 const data = await response.json();
                 const answer = data.answer || data.response || data.output || JSON.stringify(data);
-                const sources = data.sources_used || [];
-                const confidence = data.retrieval_confidence || null;
-
                 removeTypingIndicator();
-                addMessage('assistant', answer, sources, confidence);
+                addMessage('assistant', answer, data.sources_used || [], data.retrieval_confidence || null);
                 conversationHistory.push({ role: 'assistant', content: answer });
-
             } catch (error) {
                 removeTypingIndicator();
+                addMessage('assistant', `I'm not yet connected to the RAG backend.\n\n_Error: ${error.message}_`);
+            }
+            isProcessing = false; sendBtn.disabled = false; userInput.focus();
+        }
 
-                // Fallback: Show a helpful message when the webhook isn't configured yet
-                const fallbackMsg = `I'm not yet connected to the RAG backend. To activate me:\n\n**1.** Create an n8n webhook workflow at \`${WEBHOOK_URL}\`\n**2.** Add a Claude API node with the Zuora documentation as system context\n**3.** Return the response as JSON with an \`answer\` field\n\nIn the meantime, you can submit questions through the **Upload Raw Content** page, or ask directly via the **n8n form**.\n\n_Error: ${error.message}_`;
+        // ==================== UPLOAD MODE ====================
+        let totalChunksUploaded = 0;
+        let totalFilesProcessed = 0;
+        let totalErrors = 0;
 
-                addMessage('assistant', fallbackMsg);
-                conversationHistory.push({ role: 'assistant', content: fallbackMsg });
+        // Drag & drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+        fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            const sourceInput = document.getElementById('sourceLabel');
+            if (!sourceInput.value && files.length === 1) {
+                sourceInput.value = files[0].name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+            }
+            // Store files globally for upload
+            window._pendingFiles = files;
+            logMessage(`${files.length} file(s) selected: ${Array.from(files).map(f => f.name).join(', ')}`, 'info');
+        }
+
+        function chunkText(text, source) {
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            if (words.length === 0) return [];
+            const chunks = [];
+            let start = 0;
+            while (start < words.length) {
+                const end = Math.min(start + CHUNK_SIZE, words.length);
+                const chunkText = words.slice(start, end).join(' ');
+                const chunkId = source.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 80) + '_chunk_' + chunks.length;
+                chunks.push({ _id: chunkId, text: chunkText, source: source, chunk_index: chunks.length });
+                start += CHUNK_SIZE - CHUNK_OVERLAP;
+                if (end >= words.length) break;
+            }
+            chunks.forEach(c => c.total_chunks = chunks.length);
+            return chunks;
+        }
+
+        async function upsertChunk(chunk) {
+            const resp = await fetch(`${PINECONE_HOST}/records/namespaces/default/upsert`, {
+                method: 'POST',
+                headers: { 'Api-Key': PINECONE_API_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ _id: chunk._id, text: chunk.text, source: chunk.source, chunk_index: chunk.chunk_index, total_chunks: chunk.total_chunks })
+            });
+            if (!resp.ok) {
+                const errText = await resp.text();
+                throw new Error(`Pinecone ${resp.status}: ${errText.substring(0, 200)}`);
+            }
+            return resp;
+        }
+
+        function logMessage(msg, type = 'info') {
+            const log = document.getElementById('uploadLog');
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `<div class="log-${type}">[${time}] ${msg}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateProgress(current, total, label) {
+            const pct = Math.round((current / total) * 100);
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressLabel').textContent = label;
+            document.getElementById('progressPct').textContent = pct + '%';
+        }
+
+        function updateStats() {
+            document.getElementById('statChunks').textContent = totalChunksUploaded;
+            document.getElementById('statFiles').textContent = totalFilesProcessed;
+            document.getElementById('statErrors').textContent = totalErrors;
+        }
+
+        async function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                reader.readAsText(file);
+            });
+        }
+
+        function stripHtmlTags(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            // Remove script and style elements
+            tmp.querySelectorAll('script, style, nav, footer, header').forEach(el => el.remove());
+            return tmp.textContent || tmp.innerText || '';
+        }
+
+        async function startUpload() {
+            const pasteText = document.getElementById('pasteInput').value.trim();
+            const files = window._pendingFiles || [];
+            const sourceLabel = document.getElementById('sourceLabel').value.trim() || 'Unknown Source';
+
+            if (!pasteText && files.length === 0) {
+                logMessage('No content to upload. Drop files or paste text above.', 'warn');
+                return;
             }
 
-            isProcessing = false;
-            sendBtn.disabled = false;
-            userInput.focus();
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            document.getElementById('uploadProgress').classList.add('active');
+
+            let allChunks = [];
+
+            // Process pasted text
+            if (pasteText) {
+                logMessage(`Processing pasted text (${pasteText.length.toLocaleString()} chars)...`, 'info');
+                const cleaned = pasteText.includes('<') ? stripHtmlTags(pasteText) : pasteText;
+                const chunks = chunkText(cleaned, sourceLabel);
+                allChunks = allChunks.concat(chunks);
+                logMessage(`Created ${chunks.length} chunks from pasted text`, 'info');
+            }
+
+            // Process files
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                try {
+                    logMessage(`Reading file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
+                    let text = await readFileAsText(file);
+                    // Strip HTML if it looks like HTML
+                    if (file.name.match(/\.html?$/i) || text.trim().startsWith('<')) {
+                        text = stripHtmlTags(text);
+                    }
+                    const fileSrc = sourceLabel !== 'Unknown Source' ? `${sourceLabel} - ${file.name}` : file.name;
+                    const chunks = chunkText(text, fileSrc);
+                    allChunks = allChunks.concat(chunks);
+                    logMessage(`${file.name}: ${chunks.length} chunks created`, 'success');
+                    totalFilesProcessed++;
+                } catch (err) {
+                    logMessage(`Failed to read ${file.name}: ${err.message}`, 'error');
+                    totalErrors++;
+                }
+            }
+
+            if (allChunks.length === 0) {
+                logMessage('No chunks to upload. Check your content.', 'warn');
+                uploadBtn.disabled = false;
+                return;
+            }
+
+            logMessage(`Uploading ${allChunks.length} chunks to Pinecone...`, 'info');
+
+            // Upload chunks one at a time (Pinecone Records API upserts single records)
+            let successCount = 0;
+            for (let i = 0; i < allChunks.length; i++) {
+                updateProgress(i + 1, allChunks.length, `Uploading chunk ${i + 1} of ${allChunks.length}...`);
+                try {
+                    await upsertChunk(allChunks[i]);
+                    successCount++;
+                    totalChunksUploaded++;
+                } catch (err) {
+                    logMessage(`Chunk ${i + 1} failed: ${err.message}`, 'error');
+                    totalErrors++;
+                }
+                updateStats();
+                // Small delay to avoid rate limiting
+                if (i % 10 === 9) await new Promise(r => setTimeout(r, 200));
+            }
+
+            updateProgress(allChunks.length, allChunks.length, 'Complete!');
+            logMessage(`Upload complete: ${successCount}/${allChunks.length} chunks uploaded successfully`, successCount === allChunks.length ? 'success' : 'warn');
+            updateStats();
+
+            // Clear inputs
+            document.getElementById('pasteInput').value = '';
+            window._pendingFiles = null;
+            fileInput.value = '';
+            uploadBtn.disabled = false;
         }
     </script>
 </body>
