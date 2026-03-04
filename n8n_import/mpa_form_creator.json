@@ -1,0 +1,220 @@
+{
+  "name": "MPA Form Creator",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "mpa-create-form",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook_trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "_projects",
+        "options": {
+          "range": "A:H"
+        }
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "read_project",
+      "name": "Read Project",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://forms.googleapis.com/v1/forms",
+        "authentication": "oAuth2",
+        "nodeCredentialType": "googleApi",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "credentials": {
+        "googleApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "create_google_form",
+      "name": "Create Google Form",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://forms.googleapis.com/v1/forms/' + $node['create_google_form'].json.formId + ':batchUpdate' }}",
+        "authentication": "oAuth2",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "requests",
+              "value": "={{ (function(){ var requests = []; var questions = $node['webhook_trigger'].json.body.questions || []; for(var i = 0; i < questions.length; i++) { var q = questions[i]; var itemRequest = { createItem: { item: { title: q.text, questionItem: { question: { questionType: q.type === 'multipleChoice' ? 'MULTIPLE_CHOICE' : q.type === 'shortText' ? 'SHORT_ANSWER' : 'PARAGRAPH' } } } } }; requests.push(itemRequest); } return JSON.stringify(requests); })() }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "googleApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "add_questions",
+      "name": "Add Questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "{{ $node['webhook_trigger'].json.body.project_id }}_responses",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "link_to_sheets",
+      "name": "Link to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "_projects",
+        "mode": "updateOrInsert",
+        "keyToCompareOnUpdate": "project_id",
+        "columns": "project_id,form_id,form_url",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "update_project_record",
+      "name": "Update Project Record",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "responseData": "={{ { 'form_url': $node['create_google_form'].json.responderUri, 'sheet_url': 'https://docs.google.com/spreadsheets/d/1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w', 'project_id': $node['webhook_trigger'].json.body.project_id } } }}"
+      },
+      "id": "respond_webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "read_project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_project": {
+      "main": [
+        [
+          {
+            "node": "create_google_form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create_google_form": {
+      "main": [
+        [
+          {
+            "node": "add_questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "add_questions": {
+      "main": [
+        [
+          {
+            "node": "link_to_sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "link_to_sheets": {
+      "main": [
+        [
+          {
+            "node": "update_project_record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_project_record": {
+      "main": [
+        [
+          {
+            "node": "respond_webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "1",
+  "meta": {
+    "instanceId": "05aa9d52ba5e27f2a0b0c5dd8d9e6f3b"
+  },
+  "versionId": "1"
+}

@@ -1,0 +1,328 @@
+{
+  "name": "MPA Competitor Web Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "mpa-scrape-competitors",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "{{ $vars.webhook_id || 'auto' }}"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "value": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+          "mode": "list"
+        },
+        "sheetName": {
+          "value": "_competitor_registry",
+          "mode": "list"
+        },
+        "range": "A:F",
+        "options": {}
+      },
+      "id": "read_competitor_registry",
+      "name": "Read Competitor Registry",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [470, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iAf8iDwbKFomAdUD",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter to active competitors and create items for each page to scrape\nconst competitors = $input.all();\nconst competitor_name = $json.competitor_name || null;\n\nconst pages_per_competitor = ['pricing', 'features', 'product', 'integrations'];\nconst output = [];\n\nfor (const competitor of competitors) {\n  // Check if active\n  if (competitor.active !== true && competitor.active !== 'TRUE' && competitor.active !== 'true') {\n    continue;\n  }\n  \n  // Filter by name if provided\n  if (competitor_name && competitor.name.toLowerCase() !== competitor_name.toLowerCase()) {\n    continue;\n  }\n  \n  const base_url = competitor.website_url;\n  if (!base_url) continue;\n  \n  // Create items for each page type\n  for (const page_type of pages_per_competitor) {\n    const page_url = base_url.replace(/\\/$/, '') + '/' + page_type;\n    \n    output.push({\n      json: {\n        competitor_id: competitor.competitor_id,\n        competitor_name: competitor.name,\n        base_url: base_url,\n        page_type: page_type,\n        page_url: page_url,\n        website_url: base_url\n      }\n    });\n  }\n}\n\nreturn output;"
+      },
+      "id": "filter_active_competitors",
+      "name": "Filter Active Competitors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.page_url }}",
+        "options": {
+          "timeout": 30000,
+          "redirect": {
+            "follow": true,
+            "followAbsolute": true
+          }
+        },
+        "errorResponse": {
+          "response": {
+            "errorMessage": "Failed to fetch page"
+          }
+        }
+      },
+      "id": "fetch_web_page",
+      "name": "Fetch Web Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [910, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "headers": {
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json"
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-sonnet-4-20250514"
+            },
+            {
+              "name": "max_tokens",
+              "value": "4096"
+            },
+            {
+              "name": "temperature",
+              "value": "0.2"
+            },
+            {
+              "name": "system",
+              "value": "You are a competitive intelligence analyst. Extract structured information from this web page HTML. Return JSON with: company_name, page_type (pricing/features/product/integrations), key_features (array), pricing_model (if available), integrations (array), market_positioning (string), last_updated_hint (if visible). Remove all HTML markup and focus on substantive content."
+            },
+            {
+              "name": "messages",
+              "value": "={{ [ { role: 'user', content: $json.body.substring(0, 50000) } ] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract_content_via_claude",
+      "name": "Extract Content via Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1130, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "claude_api_key",
+          "name": "Claude API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Chunk the extracted text content\nconst response = $json;\nconst competitor_name = $input.first().json.competitor_name;\nconst page_type = $input.first().json.page_type;\nconst source_url = $input.first().json.page_url;\n\nlet text_content = '';\n\n// Extract text from Claude response\nif (response.content && Array.isArray(response.content) && response.content.length > 0) {\n  text_content = response.content[0].text || '';\n}\n\n// Parse JSON if present\nlet extracted_data = {};\nconst json_match = text_content.match(/\\{[\\s\\S]*\\}/);\nif (json_match) {\n  try {\n    extracted_data = JSON.parse(json_match[0]);\n    text_content = JSON.stringify(extracted_data, null, 2);\n  } catch (e) {\n    // Keep original text if JSON parsing fails\n  }\n}\n\n// Chunking parameters\nconst chunk_size = 2000; // chars (roughly 500 tokens)\nconst overlap_size = 400; // chars (roughly 100 tokens)\n\nconst chunks = [];\nconst scraped_date = new Date().toISOString();\n\nfor (let i = 0; i < text_content.length; i += chunk_size - overlap_size) {\n  const chunk_text = text_content.substring(i, i + chunk_size);\n  const chunk_index = Math.floor(i / (chunk_size - overlap_size));\n  \n  const chunk_id = `${competitor_name.toLowerCase().replace(/\\s+/g, '-')}-${page_type}-${chunk_index}`;\n  \n  chunks.push({\n    json: {\n      id: chunk_id,\n      text: chunk_text,\n      competitor_name: competitor_name,\n      page_type: page_type,\n      source_url: source_url,\n      scraped_date: scraped_date,\n      chunk_index: chunk_index,\n      metadata: {\n        competitor_name: competitor_name,\n        doc_type: page_type,\n        source_url: source_url,\n        scraped_date: scraped_date\n      }\n    }\n  });\n}\n\nreturn chunks;"
+      },
+      "id": "chunk_text",
+      "name": "Chunk Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://commerce-expert-8t9sj7i.svc.aped-4627-b74a.pinecone.io/records/namespaces/competitors/upsert",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "records",
+              "value": "={{ (function(){ const chunks = $input.all(); const records = []; for (const chunk of chunks) { records.push({ _id: chunk.json.id, text: chunk.json.text, competitor_name: chunk.json.competitor_name, doc_type: chunk.json.page_type, source_url: chunk.json.source_url, scraped_date: chunk.json.scraped_date }); } return records; })() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "upsert_to_pinecone",
+      "name": "Upsert to Pinecone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1570, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "pinecone_api_key",
+          "name": "Pinecone API Key"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "documentId": {
+          "value": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+          "mode": "list"
+        },
+        "sheetName": {
+          "value": "_competitor_registry",
+          "mode": "list"
+        },
+        "key": "competitor_id",
+        "options": {},
+        "columns": {
+          "mappings": [
+            {
+              "columnToMatch": "competitor_id",
+              "value": "={{ $input.first().json.competitor_id }}"
+            },
+            {
+              "columnToMatch": "last_scraped",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "columnToMatch": "doc_count",
+              "value": "={{ $input.all().length }}"
+            },
+            {
+              "columnToMatch": "status",
+              "value": "scraped"
+            }
+          ]
+        }
+      },
+      "id": "update_registry",
+      "name": "Update Registry",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1790, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iAf8iDwbKFomAdUD",
+          "name": "Google Sheets Account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWithOptions": "allData"
+      },
+      "id": "respond_to_webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2010, 300]
+    }
+  ],
+  "connections": {
+    "webhook": {
+      "main": [
+        [
+          {
+            "node": "read_competitor_registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_competitor_registry": {
+      "main": [
+        [
+          {
+            "node": "filter_active_competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filter_active_competitors": {
+      "main": [
+        [
+          {
+            "node": "fetch_web_page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fetch_web_page": {
+      "main": [
+        [
+          {
+            "node": "extract_content_via_claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "extract_content_via_claude": {
+      "main": [
+        [
+          {
+            "node": "chunk_text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "chunk_text": {
+      "main": [
+        [
+          {
+            "node": "upsert_to_pinecone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upsert_to_pinecone": {
+      "main": [
+        [
+          {
+            "node": "update_registry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_registry": {
+      "main": [
+        [
+          {
+            "node": "respond_to_webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromAnyPublicWorkflow",
+    "errorHandler": {
+      "node": "respond_to_webhook",
+      "type": "main"
+    }
+  }
+}

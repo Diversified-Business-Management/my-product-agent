@@ -1,0 +1,591 @@
+{
+  "name": "MPA Stage 2 Parallel Analyzer",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "mpa-analyze-idea",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "value": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+          "mode": "list"
+        },
+        "sheetName": "_prompts",
+        "range": "A:Z",
+        "options": {}
+      },
+      "id": "read_prompts",
+      "name": "Read Prompts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [450, 150]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "value": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+          "mode": "list"
+        },
+        "sheetName": "_competitor_registry",
+        "range": "A:Z",
+        "options": {}
+      },
+      "id": "read_competitors",
+      "name": "Read Competitors",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract inputs from previous nodes\nconst webhookData = $json;\nconst promptRows = $input.all()[0].json;\nconst competitorRows = $input.all()[1].json;\n\nconst projectId = webhookData.project_id;\nconst ideaDescription = webhookData.idea_description;\n\n// Build prompts lookup\nconst prompts = {};\nif (Array.isArray(promptRows)) {\n  promptRows.forEach(row => {\n    if (row.analysis_type) {\n      prompts[row.analysis_type] = row.prompt_text || row.prompt;\n    }\n  });\n}\n\n// Build competitor list\nconst competitors = [];\nif (Array.isArray(competitorRows)) {\n  competitorRows.forEach(row => {\n    if (row.company_name) {\n      competitors.push({\n        name: row.company_name,\n        features: row.key_features,\n        pricing: row.pricing_model,\n        market_position: row.market_position\n      });\n    }\n  });\n}\n\n// Create 5 analysis items\nconst analysisTypes = [\n  'general_web_search',\n  'competitor_eval',\n  'adjacent_solutions',\n  'customer_rag',\n  'tam_snapshot'\n];\n\nconst outputs = [];\nanalysisTypes.forEach(analysisType => {\n  const promptText = prompts[analysisType] || '';\n  const replacedPrompt = promptText.replace('{idea}', ideaDescription).replace('{idea_description}', ideaDescription);\n  \n  const item = {\n    analysis_type: analysisType,\n    prompt_text: replacedPrompt,\n    idea_description: ideaDescription,\n    project_id: projectId,\n    competitor_list: analysisType === 'competitor_eval' ? competitors : null\n  };\n  outputs.push(item);\n});\n\nreturn outputs;"
+      },
+      "id": "prepare_analysis_context",
+      "name": "Prepare Analysis Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 225]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.model = \"claude-sonnet-4-20250514\"; o.max_tokens = 4096; o.temperature = 0.3; o.system = $json.prompt_text; var m = Object.create(null); m.role = \"user\"; m.content = $json.idea_description; o.messages = [m]; return JSON.stringify(o); })() }}"
+      },
+      "id": "claude_general_analysis",
+      "name": "Claude General Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 100],
+      "onError": "continueRegularly"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://commerce-expert-8t9sj7i.svc.aped-4627-b74a.pinecone.io/records/namespaces/competitors/search",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.query = Object.create(null); o.query.top_k = 10; o.query.inputs = Object.create(null); o.query.inputs.text = $json.idea_description; return JSON.stringify(o); })() }}"
+      },
+      "id": "pinecone_competitor_search",
+      "name": "Pinecone Competitor Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 200],
+      "onError": "continueRegularly"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.model = \"claude-sonnet-4-20250514\"; o.max_tokens = 4096; o.temperature = 0.3; o.system = $json.prompt_text; var m = Object.create(null); m.role = \"user\"; m.content = \"Idea: \" + $json.idea_description + \"\\n\\nCompetitor Data: \" + JSON.stringify($json.competitor_list); o.messages = [m]; return JSON.stringify(o); })() }}"
+      },
+      "id": "claude_competitor_analysis",
+      "name": "Claude Competitor Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 300],
+      "onError": "continueRegularly"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.model = \"claude-sonnet-4-20250514\"; o.max_tokens = 4096; o.temperature = 0.3; o.system = $json.prompt_text; var m = Object.create(null); m.role = \"user\"; m.content = $json.idea_description; o.messages = [m]; return JSON.stringify(o); })() }}"
+      },
+      "id": "claude_adjacent_analysis",
+      "name": "Claude Adjacent Solutions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 400],
+      "onError": "continueRegularly"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://commerce-expert-8t9sj7i.svc.aped-4627-b74a.pinecone.io/records/namespaces/default/search",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.query = Object.create(null); o.query.top_k = 10; o.query.inputs = Object.create(null); o.query.inputs.text = $json.idea_description; return JSON.stringify(o); })() }}"
+      },
+      "id": "pinecone_customer_search",
+      "name": "Pinecone Customer RAG Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 500],
+      "onError": "continueRegularly"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.model = \"claude-sonnet-4-20250514\"; o.max_tokens = 4096; o.temperature = 0.3; o.system = $json.prompt_text; var m = Object.create(null); m.role = \"user\"; m.content = \"Idea: \" + $json.idea_description + \"\\n\\nCustomer Evidence: \" + JSON.stringify($json.customer_data); o.messages = [m]; return JSON.stringify(o); })() }}"
+      },
+      "id": "claude_customer_analysis",
+      "name": "Claude Customer RAG Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 600],
+      "onError": "continueRegularly"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.model = \"claude-sonnet-4-20250514\"; o.max_tokens = 4096; o.temperature = 0.3; o.system = $json.prompt_text; var m = Object.create(null); m.role = \"user\"; m.content = $json.idea_description; o.messages = [m]; return JSON.stringify(o); })() }}"
+      },
+      "id": "claude_tam_analysis",
+      "name": "Claude TAM Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 700],
+      "onError": "continueRegularly"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Route analysis items to appropriate Claude/Pinecone nodes\n// This is handled by n8n's batch processing of the 5 items\n// Each item will be processed through the appropriate analysis path\n\nconst analysisType = $json.analysis_type;\nconst output = Object.assign({}, $json);\n\nreturn output;"
+      },
+      "id": "route_analysis",
+      "name": "Route Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 225]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge all analysis results into a single object\n// Collect all items from the previous analysis nodes\n\nconst allItems = $input.all();\nconst results = {\n  general_web_search: null,\n  competitor_eval: null,\n  adjacent_solutions: null,\n  customer_rag: null,\n  tam_snapshot: null,\n  timestamp: new Date().toISOString()\n};\n\nallItems.forEach(item => {\n  const analysisType = item.json.analysis_type;\n  if (item.json.body && item.json.body.content) {\n    try {\n      const content = item.json.body.content[0].text;\n      results[analysisType] = {\n        raw_response: content,\n        analysis_type: analysisType\n      };\n    } catch (e) {\n      results[analysisType] = {\n        error: 'Failed to parse response',\n        analysis_type: analysisType\n      };\n    }\n  } else if (item.json.body) {\n    results[analysisType] = item.json.body;\n  }\n});\n\nreturn results;"
+      },
+      "id": "merge_results",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 350]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute feasibility score using CI/BI/CTI model\n// Extract key metrics from the 5 analyses and call Claude for scoring\n\nconst mergedResults = $json;\nconst projectId = $input.all()[0].json.project_id || 'unknown';\n\nconst scoringPrompt = `\nYou are a product feasibility scoring expert. Analyze the following product analysis results and provide a feasibility score.\n\nAnalysis Results:\n${JSON.stringify(mergedResults, null, 2)}\n\nScore using the CI/BI/CTI model:\n- Customer Impact (CI) - 30% weight: Measure breadth of customer pain, severity of problem, ease of mitigation\n- Business Impact (BI) - 50% weight: New ACV potential, customer retention impact, strategic alignment, competitive advantage\n- Cost to Implement (CTI) - 20% weight: Engineering complexity, team ability to execute, time to MVP\n\nProvide JSON response with:\n{\n  \"customer_impact\": { \"score\": 0-10, \"reasoning\": \"\" },\n  \"business_impact\": { \"score\": 0-10, \"reasoning\": \"\" },\n  \"cost_to_implement\": { \"score\": 0-10, \"reasoning\": \"\" },\n  \"feasibility_score\": 0-10,\n  \"go_no_go\": \"GO\" | \"NO_GO\" | \"INVESTIGATE\",\n  \"executive_summary\": \"\"\n}\n`;\n\nreturn {\n  scoring_prompt: scoringPrompt,\n  project_id: projectId,\n  merged_analyses: mergedResults\n};"
+      },
+      "id": "prepare_scoring",
+      "name": "Prepare Scoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 500]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "bodyContentType": "raw",
+        "body": "={{ (function(){ var o = Object.create(null); o.model = \"claude-sonnet-4-20250514\"; o.max_tokens = 2048; o.temperature = 0.1; o.system = \"You are a product feasibility scoring expert. Analyze product analyses and provide detailed CI/BI/CTI scoring.\"; var m = Object.create(null); m.role = \"user\"; m.content = $json.scoring_prompt; o.messages = [m]; return JSON.stringify(o); })() }}"
+      },
+      "id": "claude_scoring",
+      "name": "Claude Scoring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1300, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse scoring response and prepare for writing to sheets\nconst scoringResponse = $json.body;\nconst projectId = $input.all()[0].json.project_id || 'unknown';\nconst mergedAnalyses = $input.all()[0].json.merged_analyses;\n\nlet scoreData = {};\ntry {\n  const content = scoringResponse.content[0].text;\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    scoreData = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  scoreData = {\n    error: 'Failed to parse scoring response',\n    raw_response: scoringResponse.content[0].text\n  };\n}\n\n// Prepare 6 rows for Google Sheets:\n// 5 analysis results + 1 summary row\nconst rows = [];\n\n// Row 1-5: Individual analyses\nconst analysisTypes = ['general_web_search', 'competitor_eval', 'adjacent_solutions', 'customer_rag', 'tam_snapshot'];\nanalysisTypes.forEach(type => {\n  rows.push({\n    project_id: projectId,\n    analysis_type: type,\n    results_json: JSON.stringify(mergedAnalyses[type] || {}),\n    score: 'N/A',\n    timestamp: new Date().toISOString()\n  });\n});\n\n// Row 6: Summary with feasibility score\nrows.push({\n  project_id: projectId,\n  analysis_type: 'feasibility_summary',\n  results_json: JSON.stringify({\n    ci_bi_cti: scoreData,\n    all_analyses: mergedAnalyses\n  }),\n  score: scoreData.feasibility_score || 'N/A',\n  timestamp: new Date().toISOString()\n});\n\nreturn { rows_to_write: rows, final_score: scoreData };"
+      },
+      "id": "format_sheet_output",
+      "name": "Format Sheet Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 500]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "value": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+          "mode": "list"
+        },
+        "sheetName": "_stage2_results",
+        "columns": "project_id,analysis_type,results_json,score,timestamp",
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "write_results_to_sheets",
+      "name": "Write Results to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1600, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare final webhook response\nconst finalScore = $input.all()[0].json.final_score;\nconst rowsWritten = $input.all()[0].json.rows_to_write;\n\nconst response = {\n  success: true,\n  project_id: rowsWritten[0].project_id,\n  feasibility_score: finalScore.feasibility_score || 0,\n  go_no_go: finalScore.go_no_go || 'UNKNOWN',\n  ci_score: finalScore.customer_impact?.score || null,\n  bi_score: finalScore.business_impact?.score || null,\n  cti_score: finalScore.cost_to_implement?.score || null,\n  executive_summary: finalScore.executive_summary || '',\n  analyses_completed: 5,\n  timestamp: new Date().toISOString()\n};\n\nreturn response;"
+      },
+      "id": "prepare_webhook_response",
+      "name": "Prepare Webhook Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {},
+      "id": "respond_webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1750, 300]
+    }
+  ],
+  "connections": {
+    "webhook": {
+      "main": [
+        [
+          {
+            "node": "read_prompts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "read_competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_prompts": {
+      "main": [
+        [
+          {
+            "node": "prepare_analysis_context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_competitors": {
+      "main": [
+        [
+          {
+            "node": "prepare_analysis_context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "prepare_analysis_context": {
+      "main": [
+        [
+          {
+            "node": "route_analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "route_analysis": {
+      "main": [
+        [
+          {
+            "node": "claude_general_analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "pinecone_competitor_search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "claude_adjacent_analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "pinecone_customer_search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "claude_tam_analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "claude_general_analysis": {
+      "main": [
+        [
+          {
+            "node": "merge_results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pinecone_competitor_search": {
+      "main": [
+        [
+          {
+            "node": "claude_competitor_analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "claude_competitor_analysis": {
+      "main": [
+        [
+          {
+            "node": "merge_results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "claude_adjacent_analysis": {
+      "main": [
+        [
+          {
+            "node": "merge_results",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "pinecone_customer_search": {
+      "main": [
+        [
+          {
+            "node": "claude_customer_analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "claude_customer_analysis": {
+      "main": [
+        [
+          {
+            "node": "merge_results",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "claude_tam_analysis": {
+      "main": [
+        [
+          {
+            "node": "merge_results",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "merge_results": {
+      "main": [
+        [
+          {
+            "node": "prepare_scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare_scoring": {
+      "main": [
+        [
+          {
+            "node": "claude_scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "claude_scoring": {
+      "main": [
+        [
+          {
+            "node": "format_sheet_output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format_sheet_output": {
+      "main": [
+        [
+          {
+            "node": "write_results_to_sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "prepare_webhook_response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "write_results_to_sheets": {
+      "main": [
+        []
+      ]
+    },
+    "prepare_webhook_response": {
+      "main": [
+        [
+          {
+            "node": "respond_webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "87c61f96-db5d-4ade-9f8c-3f7e7f5c5e5e",
+  "meta": {
+    "instanceId": "7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
+  },
+  "pinData": {}
+}

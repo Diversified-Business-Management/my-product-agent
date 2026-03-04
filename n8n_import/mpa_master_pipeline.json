@@ -1,0 +1,265 @@
+{
+  "name": "MPA Master Pipeline - Stage 1: Create Project",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "mpa-create-project",
+        "responseMode": "responseNode",
+        "authentication": "none"
+      },
+      "id": "b5c2f8a1-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "webhook-mpa-create-project"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate input and prepare project data\nconst projectName = $input.body.project_name;\nconst ownerEmail = $input.body.owner_email;\nconst description = $input.body.description || '';\nconst industry = $input.body.industry || '';\nconst ideaDescription = $input.body.idea_description;\n\n// Validate required fields\nconst errors = [];\nif (!projectName || projectName.trim() === '') {\n  errors.push('project_name is required');\n}\nif (!ownerEmail || ownerEmail.trim() === '') {\n  errors.push('owner_email is required');\n}\nif (!ideaDescription || ideaDescription.trim() === '') {\n  errors.push('idea_description is required');\n}\n\nif (errors.length > 0) {\n  throw new Error('Validation failed: ' + errors.join(', '));\n}\n\n// Generate project_id: slugified name + timestamp\nconst slug = projectName\n  .toLowerCase()\n  .replace(/[^a-z0-9]+/g, '-')\n  .replace(/^-+|-+$/g, '')\n  .substring(0, 50);\nconst timestamp = Math.floor(Date.now() / 1000);\nconst projectId = slug + '-' + timestamp;\n\nreturn {\n  project_id: projectId,\n  project_name: projectName,\n  owner_email: ownerEmail,\n  description: description,\n  industry: industry,\n  idea_description: ideaDescription,\n  created_date: new Date().toISOString()\n};"
+      },
+      "id": "c7d3e9b2-validate",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "create",
+        "name": "={{ $json.project_name }}",
+        "parentId": "",
+        "googleCredential": "iAf8iDwbKFomAdUD"
+      },
+      "id": "d8e4f0c3-create-folder",
+      "name": "Create Drive Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [690, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create sub-folders in the newly created Google Drive folder\nconst parentFolderId = $input.first().json.id;\nconst subFolders = ['Analyses', 'Research', 'PRD', 'Handoff'];\n\n// Build request items for parallel Google Drive API calls\nconst folderStructure = {\n  parent_folder_id: parentFolderId,\n  sub_folders: {}\n};\n\nreturn {\n  parent_folder_id: parentFolderId,\n  sub_folders: subFolders,\n  folder_structure: folderStructure\n};"
+      },
+      "id": "e9f5g1d4-subfolder",
+      "name": "Create Sub-Folders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "operation": "appendOrUpdate",
+        "docId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "_projects",
+        "columns": "project_id,name,owner_email,description,industry,idea_description,google_folder_id,status,stage,created_date",
+        "googleCredential": "iAf8iDwbKFomAdUD"
+      },
+      "id": "f0g6h2e5-register",
+      "name": "Register Project",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [690, 400],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare email body with project details\nconst projectId = $input.first().json.project_id;\nconst projectName = $input.first().json.project_name;\nconst ownerEmail = $input.first().json.owner_email;\nconst folderId = $input.last().json.parent_folder_id || '';\nconst driveLink = 'https://drive.google.com/drive/folders/' + folderId;\n\nreturn {\n  to: ownerEmail,\n  subject: 'My Product Agent: Project Created - ' + projectName,\n  html: '<h2>Project Created Successfully</h2>' +\n        '<p><strong>Project ID:</strong> ' + projectId + '</p>' +\n        '<p><strong>Project Name:</strong> ' + projectName + '</p>' +\n        '<p><strong>Status:</strong> Created - Ready for Stage 2</p>' +\n        '<p><a href=\"' + driveLink + '\">View Project Folder in Google Drive</a></p>' +\n        '<p>Your project has been registered in the Master Pipeline and is ready for the next stage.</p>',\n  projectId: projectId,\n  projectName: projectName,\n  folderId: folderId\n};"
+      },
+      "id": "g1h7i3f6-email-prep",
+      "name": "Prepare Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1010, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "htmlBody": "={{ $json.html }}",
+        "googleCredential": "iAf8iDwbKFomAdUD"
+      },
+      "id": "h2i8j4g7-send-email",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1130, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build success response\nconst projectId = $input.first().json.project_id;\nconst projectName = $input.first().json.project_name;\nconst folderId = $input.first().json.parent_folder_id || '';\nconst googleFolderUrl = 'https://drive.google.com/drive/folders/' + folderId;\n\nreturn {\n  success: true,\n  project_id: projectId,\n  project_name: projectName,\n  google_folder_url: googleFolderUrl,\n  message: 'Project created successfully. Confirmation email sent to owner.'\n};"
+      },
+      "id": "i3j9k5h8-response-prep",
+      "name": "Prepare Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1260, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "responseCode": 200,
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "j4k0l6i9-respond-success",
+      "name": "Respond to Webhook - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle validation error\nconst errorMessage = $input.first().json.message || 'Validation failed';\nreturn {\n  success: false,\n  error: errorMessage,\n  code: 'VALIDATION_ERROR'\n};"
+      },
+      "id": "k5l1m7j0-error-prep",
+      "name": "Prepare Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 500],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "responseCode": 400,
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "l6m2n8k1-respond-error",
+      "name": "Respond to Webhook - Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [910, 500]
+    }
+  ],
+  "connections": {
+    "b5c2f8a1-webhook": {
+      "main": [
+        [
+          {
+            "node": "c7d3e9b2-validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "c7d3e9b2-validate": {
+      "main": [
+        [
+          {
+            "node": "d8e4f0c3-create-folder",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "f0g6h2e5-register",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "k5l1m7j0-error-prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "d8e4f0c3-create-folder": {
+      "main": [
+        [
+          {
+            "node": "e9f5g1d4-subfolder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "e9f5g1d4-subfolder": {
+      "main": [
+        [
+          {
+            "node": "g1h7i3f6-email-prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "f0g6h2e5-register": {
+      "main": [
+        [
+          {
+            "node": "g1h7i3f6-email-prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "g1h7i3f6-email-prep": {
+      "main": [
+        [
+          {
+            "node": "h2i8j4g7-send-email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "h2i8j4g7-send-email": {
+      "main": [
+        [
+          {
+            "node": "i3j9k5h8-response-prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "i3j9k5h8-response-prep": {
+      "main": [
+        [
+          {
+            "node": "j4k0l6i9-respond-success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "k5l1m7j0-error-prep": {
+      "main": [
+        [
+          {
+            "node": "l6m2n8k1-respond-error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a0b1c2d3e4f5g6h7i8j9k0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "mpa-stage1-create-project"
+  },
+  "pinData": {}
+}

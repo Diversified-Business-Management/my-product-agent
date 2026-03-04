@@ -1,0 +1,328 @@
+{
+  "name": "MPA PRD Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "mpa-generate-prd",
+        "responseMode": "responseNode"
+      },
+      "id": "webhook_trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "{{ $node['webhook_trigger'].json.body.project_id }}_research",
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "read_research_data",
+      "name": "Read Research Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        450,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "_stage2_results",
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "read_scoring_data",
+      "name": "Read Scoring Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        450,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "_prompts",
+        "options": {
+          "range": "A:C"
+        }
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "read_prompts",
+      "name": "Read Prompts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        450,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {{ (function(){\n  var researchData = $node['read_research_data'].json;\n  var scoringData = $node['read_scoring_data'].json;\n  var projectId = $node['webhook_trigger'].json.body.project_id;\n  var prdTitle = $node['webhook_trigger'].json.body.prd_title;\n  var targetRelease = $node['webhook_trigger'].json.body.target_release;\n  var successMetrics = $node['webhook_trigger'].json.body.success_metrics || [];\n  \n  var scoredCapabilities = [];\n  if (scoringData && Array.isArray(scoringData)) {\n    scoredCapabilities = scoringData\n      .filter(function(item) { return item.project_id === projectId; })\n      .sort(function(a, b) { return (b.score || 0) - (a.score || 0); })\n      .slice(0, 10);\n  }\n  \n  var context = {\n    projectId: projectId,\n    prdTitle: prdTitle,\n    targetRelease: targetRelease,\n    successMetrics: successMetrics,\n    researchSummary: researchData,\n    topCapabilities: scoredCapabilities\n  };\n  \n  var prompt = 'You are a senior product manager. Generate a comprehensive PRD based on the following research and scoring data:\\n\\n';\n  prompt += 'PROJECT: ' + prdTitle + '\\n';\n  prompt += 'TARGET RELEASE: ' + targetRelease + '\\n';\n  prompt += 'SUCCESS METRICS: ' + JSON.stringify(successMetrics) + '\\n\\n';\n  prompt += 'RESEARCH DATA:\\n' + JSON.stringify(researchData, null, 2) + '\\n\\n';\n  prompt += 'TOP SCORED CAPABILITIES:\\n' + JSON.stringify(scoredCapabilities, null, 2) + '\\n\\n';\n  prompt += 'Generate a detailed PRD including: Executive Summary, Problem Statement, Target User, Key Features, Success Criteria, and Implementation Timeline.';\n  \n  return { context: context, prompt: prompt };\n})()} }}"
+      },
+      "id": "prepare_prd_context",
+      "name": "Prepare PRD Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "claude-sonnet-4-20250514"
+            },
+            {
+              "name": "max_tokens",
+              "value": "8000"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [ { role: 'user', content: $node['prepare_prd_context'].json.prompt } ] }}"
+            },
+            {
+              "name": "system",
+              "value": "You are a senior product manager with expertise in creating comprehensive Product Requirements Documents. Your PRDs should include clear problem statements, user personas, feature specifications, success metrics, and implementation roadmaps. Format the output as clean markdown with proper headings and structure."
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "anthropic-version": "2023-06-01"
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": "anthropic_api"
+      },
+      "id": "generate_prd_claude",
+      "name": "Generate PRD via Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        950,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "var response = $node['generate_prd_claude'].json;\nvar prdContent = '';\n\nif (response.content && Array.isArray(response.content)) {\n  response.content.forEach(function(block) {\n    if (block.type === 'text') {\n      prdContent += block.text;\n    }\n  });\n}\n\nreturn {\n  prd_markdown: prdContent,\n  project_id: $node['webhook_trigger'].json.body.project_id,\n  generated_at: new Date().toISOString()\n};"
+      },
+      "id": "parse_prd",
+      "name": "Parse PRD",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1150,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "{{ $node['webhook_trigger'].json.body.project_id }}_prd",
+        "mode": "overwrite",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "write_prd_sheets",
+      "name": "Write PRD to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1350,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": "1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w",
+        "sheetName": "_projects",
+        "mode": "updateOrInsert",
+        "keyToCompareOnUpdate": "project_id",
+        "columns": "project_id,status,stage,prd_generated_at",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsApi": "iAf8iDwbKFomAdUD"
+      },
+      "id": "update_project_status",
+      "name": "Update Project Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1550,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "responseData": "={{ { project_id: $node['webhook_trigger'].json.body.project_id, status: 'prd_generated', stage: '4_prd', prd_preview: $node['parse_prd'].json.prd_markdown.substring(0, 500) + '...', generated_at: $node['parse_prd'].json.generated_at } }}"
+      },
+      "id": "respond_webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "webhook_trigger": {
+      "main": [
+        [
+          {
+            "node": "read_research_data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "read_scoring_data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "read_prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_research_data": {
+      "main": [
+        [
+          {
+            "node": "prepare_prd_context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_scoring_data": {
+      "main": [
+        [
+          {
+            "node": "prepare_prd_context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_prompts": {
+      "main": [
+        [
+          {
+            "node": "prepare_prd_context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "prepare_prd_context": {
+      "main": [
+        [
+          {
+            "node": "generate_prd_claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generate_prd_claude": {
+      "main": [
+        [
+          {
+            "node": "parse_prd",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_prd": {
+      "main": [
+        [
+          {
+            "node": "write_prd_sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "update_project_status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "write_prd_sheets": {
+      "main": [
+        [
+          {
+            "node": "respond_webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_project_status": {
+      "main": [
+        [
+          {
+            "node": "respond_webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "2",
+  "meta": {
+    "instanceId": "05aa9d52ba5e27f2a0b0c5dd8d9e6f3b"
+  },
+  "versionId": "1"
+}
