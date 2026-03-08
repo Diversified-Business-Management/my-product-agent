@@ -117,6 +117,22 @@
                 </div>
             </div>
 
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Target Knowledge Base</label>
+                    <select id="targetNamespace">
+                        <option value="master">Master RAG (shared domain knowledge)</option>
+                        <option value="project">Project-Specific (select project below)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="projectSelectGroup" style="display:none;">
+                    <label>Project</label>
+                    <select id="projectSelect">
+                        <option value="">Loading projects...</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label>Raw Content</label>
                 <textarea id="rawContent" placeholder="Paste the full transcript, meeting notes, email thread, or any raw content here. The AI engine will analyze it for product capabilities, pain points, and strategic insights..." required></textarea>
@@ -166,16 +182,51 @@
         const statusBar = document.getElementById('statusBar');
         let uploadHistory = [];
 
-        // n8n form trigger production URL (UUID-based — the slug URL does NOT work)
+        // n8n webhook URLs
+        const N8N_MASTER_RAG_URL = 'https://edenger.app.n8n.cloud/webhook/mpa-master-rag';
         const N8N_FORM_URL = 'https://edenger.app.n8n.cloud/form/37a418f9-a2a8-498c-acdf-7059825d2a36';
 
-        // Create hidden iframe for cross-origin form POST (avoids CORS entirely)
+        // Namespace selector toggle
+        const targetNs = document.getElementById('targetNamespace');
+        const projectGroup = document.getElementById('projectSelectGroup');
+        targetNs.addEventListener('change', () => {
+            projectGroup.style.display = targetNs.value === 'project' ? '' : 'none';
+        });
+
+        // Load projects from Google Sheets
+        async function loadProjects() {
+            const select = document.getElementById('projectSelect');
+            try {
+                const sheetId = '1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w';
+                const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=_config`;
+                const res = await fetch(url);
+                const text = await res.text();
+                const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+                const rows = json.table.rows;
+                select.innerHTML = '<option value="">Select a project...</option>';
+                rows.forEach(row => {
+                    const slug = row.c[0]?.v || '';
+                    const name = row.c[1]?.v || slug;
+                    if (slug) {
+                        const opt = document.createElement('option');
+                        opt.value = slug;
+                        opt.textContent = name;
+                        select.appendChild(opt);
+                    }
+                });
+            } catch (e) {
+                select.innerHTML = '<option value="">Could not load projects</option>';
+            }
+        }
+        loadProjects();
+
+        // Create hidden iframe for fallback form POST (avoids CORS)
         const hiddenFrame = document.createElement('iframe');
         hiddenFrame.name = 'n8n_submit_frame';
         hiddenFrame.style.display = 'none';
         document.body.appendChild(hiddenFrame);
 
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const companyName = document.getElementById('companyName').value.trim();
@@ -183,68 +234,84 @@
             const contactRole = document.getElementById('contactRole').value.trim();
             const contentDate = document.getElementById('contentDate').value;
             const content = rawContent.value.trim();
+            const namespace = targetNs.value === 'project'
+                ? `project-${document.getElementById('projectSelect').value}`
+                : 'master';
 
             if (!companyName || !contactName || !content) {
                 showStatus('error', 'Please fill in all required fields.');
                 return;
             }
-
-            // Prepare the transcript with metadata context prepended
-            const enrichedTranscript = `[Content Type: ${selectedType}]\n[Company: ${companyName}]\n[Contact: ${contactName} - ${contactRole}]\n[Date: ${contentDate}]\n\n${content}`;
-
-            // Create a hidden form that POSTs directly to n8n (bypasses CORS)
-            const hiddenForm = document.createElement('form');
-            hiddenForm.method = 'POST';
-            hiddenForm.action = N8N_FORM_URL;
-            hiddenForm.target = 'n8n_submit_frame'; // Submit into hidden iframe
-
-            const fields = {
-                'Company Name': companyName,
-                'Interviewee Name': contactName,
-                'Interviewee Role': contactRole || selectedType,
-                'Interview Date': contentDate,
-                'Transcript': enrichedTranscript
-            };
-
-            for (const [name, value] of Object.entries(fields)) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = value;
-                hiddenForm.appendChild(input);
+            if (targetNs.value === 'project' && !document.getElementById('projectSelect').value) {
+                showStatus('error', 'Please select a project for project-specific uploads.');
+                return;
             }
-
-            document.body.appendChild(hiddenForm);
 
             submitBtn.disabled = true;
             submitBtn.innerHTML = '&#9203; Sending to AI Engine...';
             showStatus('sending', 'Submitting content to the n8n workflow for Claude analysis. This may take up to 2 minutes...');
 
-            // Listen for iframe load (indicates form POST completed)
-            hiddenFrame.onload = () => {
-                showStatus('success', `Content submitted! ${companyName} - ${selectedType} is being processed by Claude. Check your Google Sheet in 1-2 minutes for results.`);
+            // Try webhook approach first (supports both master and project RAG)
+            try {
+                const webhookUrl = namespace === 'master' ? N8N_MASTER_RAG_URL : N8N_MASTER_RAG_URL;
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: content,
+                        title: `${selectedType} - ${companyName} - ${contactName}`,
+                        content_type: selectedType,
+                        source: `${companyName} / ${contactName}`,
+                        pinecone_namespace: namespace,
+                        project_slug: targetNs.value === 'project' ? document.getElementById('projectSelect').value : '',
+                        customer_name: contactName,
+                        customer_role: contactRole,
+                        customer_company: companyName,
+                        source_date: contentDate,
+                    }),
+                });
+                if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
+                const result = await response.json();
+                showStatus('success', `Content processed! ${result.chunks_processed || '?'} chunks stored in ${namespace} namespace. Summary: ${(result.summary || '').substring(0, 100)}...`);
                 addToHistory(companyName, contactName, selectedType, contentDate);
                 rawContent.value = '';
                 charCount.textContent = '0';
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '&#128640; Analyze &amp; Upload to Knowledge Base';
-                hiddenForm.remove();
-            };
-
-            // Timeout fallback — n8n form triggers redirect, so iframe load fires on redirect
-            setTimeout(() => {
-                if (submitBtn.disabled) {
-                    showStatus('success', `Content submitted! ${companyName} - ${selectedType} is being processed. Check your Google Sheet in 1-2 minutes.`);
+            } catch (webhookError) {
+                console.log('Webhook failed, falling back to form POST:', webhookError.message);
+                // Fallback: use hidden form POST to legacy n8n form trigger
+                const enrichedTranscript = `[Content Type: ${selectedType}]\n[Company: ${companyName}]\n[Contact: ${contactName} - ${contactRole}]\n[Date: ${contentDate}]\n[Namespace: ${namespace}]\n\n${content}`;
+                const hiddenForm = document.createElement('form');
+                hiddenForm.method = 'POST';
+                hiddenForm.action = N8N_FORM_URL;
+                hiddenForm.target = 'n8n_submit_frame';
+                const fields = {
+                    'Company Name': companyName,
+                    'Interviewee Name': contactName,
+                    'Interviewee Role': contactRole || selectedType,
+                    'Interview Date': contentDate,
+                    'Transcript': enrichedTranscript
+                };
+                for (const [name, value] of Object.entries(fields)) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    input.value = value;
+                    hiddenForm.appendChild(input);
+                }
+                document.body.appendChild(hiddenForm);
+                hiddenFrame.onload = () => {
+                    showStatus('success', `Content submitted via fallback! ${companyName} - ${selectedType} is being processed. Check your Google Sheet in 1-2 minutes.`);
                     addToHistory(companyName, contactName, selectedType, contentDate);
                     rawContent.value = '';
                     charCount.textContent = '0';
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = '&#128640; Analyze &amp; Upload to Knowledge Base';
                     hiddenForm.remove();
-                }
-            }, 5000);
+                };
+                setTimeout(() => { if (submitBtn.disabled) { hiddenForm.remove(); } }, 8000);
+                hiddenForm.submit();
+            }
 
-            hiddenForm.submit();
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '&#128640; Analyze &amp; Upload to Knowledge Base';
         });
 
         function showStatus(type, message) {
