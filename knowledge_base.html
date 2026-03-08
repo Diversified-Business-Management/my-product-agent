@@ -1080,16 +1080,40 @@ Return ONLY valid JSON in this exact format:
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            content: content,
+                            transcript: content,
+                            project_slug: metadata.project || '_general',
+                            customer_name: metadata.contactName,
+                            customer_role: metadata.contactRole,
+                            customer_company: metadata.company,
+                            source_type: metadata.sourceType,
+                            source_date: metadata.date,
                             questions: state.questions,
                             metadata: metadata,
                             system_prompt: systemPrompt,
                             user_prompt: userPrompt,
+                            pinecone_namespace: metadata.project ? `project-${metadata.project}` : 'master',
                         }),
                     });
-                    result = await response.json();
+                    if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
+                    const webhookResult = await response.json();
+                    // Normalize n8n response to match expected format
+                    result = webhookResult.analysis || webhookResult;
+                    // Map n8n field names to frontend expected names if needed
+                    if (webhookResult.insights && !result.insights) {
+                        result.insights = webhookResult.insights;
+                    }
+                    if (webhookResult.summary && !result.key_takeaways) {
+                        result.key_takeaways = [webhookResult.summary];
+                    }
+                    if (webhookResult.sentiment && !result.overall_sentiment) {
+                        result.overall_sentiment = webhookResult.sentiment;
+                    }
+                    if (webhookResult.key_themes && !result.key_takeaways) {
+                        result.key_takeaways = webhookResult.key_themes;
+                    }
+                    console.log('Webhook response received:', Object.keys(result));
                 } catch (webhookError) {
-                    console.log('Webhook not available, using local simulation:', webhookError);
+                    console.log('Webhook not available, using local simulation:', webhookError.message);
                     // Simulate processing locally (generates structured demo data)
                     result = simulateAnalysis(content, metadata);
                 }
