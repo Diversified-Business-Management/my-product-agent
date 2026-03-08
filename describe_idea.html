@@ -1169,11 +1169,11 @@
                 ]
             },
             competitors: [
-                { name: 'Salesforce', feature_available: true, zuora_status: 'Beta', gap_level: 'low' },
-                { name: 'BillingPlatform', feature_available: false, zuora_status: 'Planned Q3', gap_level: 'high' },
-                { name: 'Metronome', feature_available: true, zuora_status: 'Live', gap_level: 'low' },
-                { name: 'Orb', feature_available: true, zuora_status: 'Live', gap_level: 'medium' },
-                { name: 'Stripe', feature_available: false, zuora_status: 'No Plans', gap_level: 'high' }
+                { name: 'Salesforce', feature_available: true, product_status: 'Beta', gap_level: 'low' },
+                { name: 'BillingPlatform', feature_available: false, product_status: 'Planned Q3', gap_level: 'high' },
+                { name: 'Metronome', feature_available: true, product_status: 'Live', gap_level: 'low' },
+                { name: 'Orb', feature_available: true, product_status: 'Live', gap_level: 'medium' },
+                { name: 'Stripe', feature_available: false, product_status: 'No Plans', gap_level: 'high' }
             ],
             adjacent_solutions: [
                 {
@@ -1432,7 +1432,7 @@
                     <tr>
                         <th>Competitor</th>
                         <th>Feature Available</th>
-                        <th>Zuora Status</th>
+                        <th>Product Status</th>
                         <th>Gap Level</th>
                     </tr>
                 </thead>
@@ -1441,7 +1441,7 @@
                         <tr>
                             <td>${comp.name}</td>
                             <td><span class="feature-badge ${comp.feature_available ? 'yes' : 'no'}">${comp.feature_available ? 'Yes' : 'No'}</span></td>
-                            <td>${comp.zuora_status}</td>
+                            <td>${comp.product_status}</td>
                             <td><span class="gap-badge ${comp.gap_level}">${comp.gap_level.charAt(0).toUpperCase() + comp.gap_level.slice(1)}</span></td>
                         </tr>
                     `).join('')}

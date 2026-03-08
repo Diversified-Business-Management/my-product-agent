@@ -9,7 +9,7 @@ function setupMPATabs() {
   prompts.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#1e3a5f').setFontColor('#ffffff');
   var promptData = [
     ['P1', '2', 'general_web_search', 'You are a market research analyst at Zuora. Given this product idea: {idea}. Search for market trends, existing solutions, and opportunities in the subscription/commerce space. Provide key_insights (array), opportunities (array), and risks (array). Return JSON.', '1.0', '2026-03-04', 'TRUE'],
-    ['P2', '2', 'competitor_eval', 'You are a competitive intelligence analyst. Compare this idea against these competitors: {competitor_list}. For each competitor assess: feature_available (yes/no/partial), zuora_status (available/planned/gap), gap_level (none/minor/major). Return JSON with competitive_matrix array.', '1.0', '2026-03-04', 'TRUE'],
+    ['P2', '2', 'competitor_eval', 'You are a competitive intelligence analyst. Compare this idea against these competitors: {competitor_list}. For each competitor assess: feature_available (yes/no/partial), product_status (available/planned/gap), gap_level (none/minor/major). Return JSON with competitive_matrix array.', '1.0', '2026-03-04', 'TRUE'],
     ['P3', '2', 'adjacent_solutions', 'You are an innovation scout. For this problem: {idea}. Identify companies in OTHER industries solving similar problems. Focus on transferable mechanisms and inspiration. Return JSON with adjacent_solutions array of {industry, company, solution, transferable_idea}.', '1.0', '2026-03-04', 'TRUE'],
     ['P4', '2', 'customer_rag', 'You are a customer insights analyst at Zuora. Given this idea: {idea}. Analyze the following customer evidence to identify pain points, feature requests, severity levels, and customer segments affected. Return JSON with customer_evidence array and demand_signals.', '1.0', '2026-03-04', 'TRUE'],
     ['P5', '2', 'tam_snapshot', 'You are a market sizing analyst. For this product idea: {idea}. Estimate TAM, SAM, and SOM for the addressable market. Include growth rates (CAGR), key segments, and rationale. Return JSON with tam_usd, sam_usd, som_usd, cagr, key_markets array.', '1.0', '2026-03-04', 'TRUE']
@@ -23,7 +23,7 @@ function setupMPATabs() {
   projects.clear();
   projects.getRange(1, 1, 1, 11).setValues([['project_id', 'name', 'owner_email', 'description', 'google_folder_id', 'google_form_id', 'form_url', 'stage', 'feasibility_score', 'status', 'created_date']]);
   projects.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#1e3a5f').setFontColor('#ffffff');
-  projects.getRange(2, 1, 1, 11).setValues([['PROJ-001', 'Merchandising V1', 'diversifiedbusinessmgmt@gmail.com', 'Zuora Commerce Merchandising capabilities', '', '', '', 'research', '7.87', 'active', '2026-02-28']]);
+  projects.getRange(2, 1, 1, 11).setValues([['PROJ-001', 'Merchandising V1', 'diversifiedbusinessmgmt@gmail.com', 'My Product Agent Merchandising capabilities', '', '', '', 'research', '7.87', 'active', '2026-02-28']]);
   projects.autoResizeColumns(1, 11);
 
   // 3. Create _stage2_results tab
