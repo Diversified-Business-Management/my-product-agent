@@ -992,7 +992,7 @@
             <div class="form-group">
                 <label class="form-label">Project</label>
                 <select class="project-selector" id="projectSelector">
-                    <option value="merchandising-v1">Merchandising V1</option>
+                    <option value="">Loading projects...</option>
                 </select>
             </div>
 
@@ -1132,121 +1132,13 @@
     </div>
 
     <script>
-        // Configuration
-        const DEMO_MODE = true; // Set to false when webhook is ready
+        // ============================================
+        // CONFIGURATION
+        // ============================================
         const WEBHOOK_URL = 'https://edenger.app.n8n.cloud/webhook/mpa-analyze-idea';
+        const SHEETS_ID = '1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w';
+        const GVIZ_BASE = `https://docs.google.com/spreadsheets/d/${SHEETS_ID}/gviz/tq?tqx=out:json`;
 
-        // Get URL parameters
-        function getUrlParam(param) {
-            const searchParams = new URLSearchParams(window.location.search);
-            return searchParams.get(param);
-        }
-
-        // Demo data
-        const DEMO_DATA = {
-            feasibility_score: 7.2,
-            ci_score: 6.8,
-            bi_score: 7.8,
-            cti_score: 6.5,
-            web_search: {
-                key_insights: [
-                    'Dynamic pricing adoption in B2B SaaS has grown 34% YoY, with enterprise focus on revenue optimization',
-                    'Gartner projects $2.1B+ TAM for pricing intelligence platforms by 2027',
-                    'Customer willingness to pay models show 23% uptake in mid-market segment',
-                    'Real-time pricing adjustment correlates with 15-28% ARR improvement in early adopters',
-                    'Privacy and data residency concerns are top implementation barriers',
-                    'API-first architectures enable faster time-to-value for pricing solutions'
-                ],
-                opportunities: [
-                    'Untapped SMB market (<$10M ARR) seeking affordable solutions',
-                    'Integration with existing billing platforms (Stripe, Zuora) as expansion path',
-                    'Industry-specific pricing templates for vertical SaaS'
-                ],
-                risks: [
-                    'Customer hesitancy to share transaction data for pricing analysis',
-                    'Regulatory scrutiny on algorithmic pricing fairness',
-                    'Incumbent solutions expanding into this space aggressively'
-                ]
-            },
-            competitors: [
-                { name: 'Salesforce', feature_available: true, product_status: 'Beta', gap_level: 'low' },
-                { name: 'BillingPlatform', feature_available: false, product_status: 'Planned Q3', gap_level: 'high' },
-                { name: 'Metronome', feature_available: true, product_status: 'Live', gap_level: 'low' },
-                { name: 'Orb', feature_available: true, product_status: 'Live', gap_level: 'medium' },
-                { name: 'Stripe', feature_available: false, product_status: 'No Plans', gap_level: 'high' }
-            ],
-            adjacent_solutions: [
-                {
-                    industry: 'E-commerce',
-                    solution: 'Dynamic pricing engine (Amazon, eBay)',
-                    transferable: 'Real-time inventory-based repricing, A/B testing frameworks'
-                },
-                {
-                    industry: 'Airlines',
-                    solution: 'Revenue management systems',
-                    transferable: 'Demand forecasting, customer segment targeting, price elasticity modeling'
-                },
-                {
-                    industry: 'Hospitality',
-                    solution: 'Yield management platforms',
-                    transferable: 'Historical trend analysis, seasonal adjustment, competitive pricing monitoring'
-                },
-                {
-                    industry: 'Retail',
-                    solution: 'Markdown optimization',
-                    transferable: 'Margin protection algorithms, promotional timing, inventory-based pricing'
-                }
-            ],
-            customer_evidence: [
-                {
-                    quote: 'Manual pricing reviews consume 40+ hours/month across our sales and finance teams. A solution that automates this would transform our operations.',
-                    company: 'Caterpillar',
-                    severity: 'critical',
-                    segment: 'Enterprise'
-                },
-                {
-                    quote: 'We lose 8-12% of potential revenue by not adjusting pricing in real-time based on market conditions.',
-                    company: 'Honeywell',
-                    severity: 'critical',
-                    segment: 'Enterprise'
-                },
-                {
-                    quote: 'Competitive pricing visibility is our blind spot. We need data-driven insights to inform pricing strategy.',
-                    company: 'Flex',
-                    severity: 'high',
-                    segment: 'Mid-Market'
-                },
-                {
-                    quote: 'Our pricing complexity (40+ tiers) creates customer confusion and support overhead.',
-                    company: 'Atlassian',
-                    severity: 'high',
-                    segment: 'Enterprise'
-                }
-            ],
-            tam_snapshot: {
-                tam: '$12.4B',
-                sam: '$3.2B',
-                som: '$240M',
-                key_markets: [
-                    'Enterprise SaaS (60% of TAM)',
-                    'Subscription Commerce (25% of TAM)',
-                    'Professional Services (10% of TAM)',
-                    'Marketplace Platforms (5% of TAM)'
-                ],
-                growth_rate: '26% CAGR'
-            },
-            key_questions: [
-                'How quickly can we acquire access to transaction/customer data from target accounts?',
-                'What is the optimal pricing model (per-user, per-transaction, or value-based)?',
-                'Which integration points (billing, CRM, analytics) matter most for customer adoption?',
-                'How do we build trust with customers on data privacy and fairness transparency?',
-                'What is the minimum TAM threshold to make this venture viable vs. existing solutions?',
-                'Can we achieve <3 month implementation timeline given typical enterprise complexity?',
-                'How defensible is our differentiation vs. Salesforce and Stripe expanding capabilities?'
-            ]
-        };
-
-        // Analyses to track
         const ANALYSES = [
             'General Web Search',
             'Competitor Evaluation',
@@ -1256,28 +1148,180 @@
         ];
 
         // State
-        let currentState = 'input'; // input, loading, results
+        let currentState = 'input';
         let analysisProgress = 0;
-        let projectId = getUrlParam('project_id') || 'merchandising-v1';
+        let projectId = '';
+        let projectsData = [];
 
-        // Initialize
+        // ============================================
+        // URL HELPERS
+        // ============================================
+        function getUrlParam(param) {
+            return new URLSearchParams(window.location.search).get(param);
+        }
+
+        // ============================================
+        // GOOGLE SHEETS GVIZ LOADER
+        // ============================================
+        function parseGvizResponse(text) {
+            const match = text.match(/setResponse\(([\s\S]*)\)/);
+            if (!match) throw new Error('Invalid gviz response');
+            const json = JSON.parse(match[1]);
+            const cols = json.table.cols.map(c => c.label || c.id);
+            return json.table.rows.map(row => {
+                const obj = {};
+                cols.forEach((col, i) => {
+                    obj[col] = row.c && row.c[i] ? (row.c[i].v || '') : '';
+                });
+                return obj;
+            });
+        }
+
+        async function loadFromSheet(sheetName) {
+            const resp = await fetch(`${GVIZ_BASE}&sheet=${encodeURIComponent(sheetName)}`);
+            if (!resp.ok) throw new Error(`Sheet fetch failed: ${resp.status}`);
+            return parseGvizResponse(await resp.text());
+        }
+
+        // ============================================
+        // LOAD PROJECTS INTO DROPDOWN
+        // ============================================
+        async function loadProjects() {
+            const selector = document.getElementById('projectSelector');
+            try {
+                const projects = await loadFromSheet('_projects');
+                projectsData = projects;
+                selector.innerHTML = '<option value="">Select a project...</option>';
+                projects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.project_id || '';
+                    opt.textContent = p.name || p.project_id || 'Unnamed';
+                    opt.dataset.description = p.description || '';
+                    selector.appendChild(opt);
+                });
+
+                // Auto-select from URL param or sessionStorage
+                const urlProjectId = getUrlParam('project_id');
+                const storedProjectId = sessionStorage.getItem('projectId');
+                const targetId = urlProjectId || storedProjectId;
+                if (targetId) {
+                    selector.value = targetId;
+                    projectId = targetId;
+                    // Pre-fill idea from project description if textarea is empty
+                    const textarea = document.getElementById('ideaTextarea');
+                    if (!textarea.value.trim()) {
+                        const proj = projects.find(p => p.project_id === targetId);
+                        if (proj && proj.description) {
+                            textarea.value = proj.description;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load projects from Sheets:', e);
+                // Fallback: use sessionStorage data from create_project page
+                const storedId = sessionStorage.getItem('projectId');
+                const storedName = sessionStorage.getItem('projectName');
+                if (storedId) {
+                    selector.innerHTML = `<option value="${storedId}">${storedName || storedId}</option>`;
+                    selector.value = storedId;
+                    projectId = storedId;
+                } else {
+                    selector.innerHTML = '<option value="">No projects found - create one first</option>';
+                }
+            }
+        }
+
+        // ============================================
+        // PARSE CLAUDE RAW RESPONSES
+        // ============================================
+        function tryParseJSON(text) {
+            if (!text) return null;
+            try {
+                // Try direct JSON parse
+                const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) || text.match(/\{[\s\S]*\}/);
+                const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function parseAnalysisText(rawText) {
+            // Convert markdown/text into displayable HTML paragraphs
+            if (!rawText) return '<p style="color: var(--text-secondary);">No data available.</p>';
+            return rawText
+                .split('\n')
+                .filter(line => line.trim())
+                .map(line => {
+                    if (line.startsWith('## ') || line.startsWith('### ')) {
+                        return `<div class="section-header">${line.replace(/^#+\s*/, '')}</div>`;
+                    }
+                    if (line.startsWith('- ') || line.startsWith('* ')) {
+                        return `<li style="padding: 6px 0; border-bottom: 1px solid var(--border-color);">${line.replace(/^[-*]\s*/, '')}</li>`;
+                    }
+                    if (line.startsWith('**') && line.endsWith('**')) {
+                        return `<div class="section-header">${line.replace(/\*\*/g, '')}</div>`;
+                    }
+                    return `<p style="margin-bottom: 8px; color: var(--text-primary); font-size: 14px;">${line}</p>`;
+                })
+                .join('');
+        }
+
+        // ============================================
+        // FETCH DETAILED RESULTS FROM SHEETS
+        // ============================================
+        async function fetchDetailedResults(projId) {
+            try {
+                const rows = await loadFromSheet('_stage2_results');
+                const projectRows = rows.filter(r => r.project_id === projId);
+                const analyses = {};
+                projectRows.forEach(row => {
+                    if (row.analysis_type && row.analysis_type !== 'feasibility_summary') {
+                        let parsed = null;
+                        try {
+                            const obj = JSON.parse(row.results_json || '{}');
+                            parsed = obj.raw_response || obj;
+                        } catch (e) {
+                            parsed = row.results_json;
+                        }
+                        analyses[row.analysis_type] = parsed;
+                    }
+                });
+                return analyses;
+            } catch (e) {
+                console.warn('Could not fetch detailed results:', e);
+                return null;
+            }
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
         document.addEventListener('DOMContentLoaded', () => {
+            // Load projects dynamically
+            loadProjects();
+
+            // Pre-fill idea from URL param
             const ideaParam = getUrlParam('idea');
             if (ideaParam) {
                 document.getElementById('ideaTextarea').value = decodeURIComponent(ideaParam);
             }
 
+            // Event listeners
             document.getElementById('runAssessmentBtn').addEventListener('click', handleRunAssessment);
             document.getElementById('projectSelector').addEventListener('change', (e) => {
                 projectId = e.target.value;
+                // Auto-fill description if available
+                const proj = projectsData.find(p => p.project_id === projectId);
+                const textarea = document.getElementById('ideaTextarea');
+                if (proj && proj.description && !textarea.value.trim()) {
+                    textarea.value = proj.description;
+                }
             });
 
             // Tab navigation
             document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const tabName = e.target.dataset.tab;
-                    switchTab(tabName);
-                });
+                btn.addEventListener('click', (e) => switchTab(e.target.dataset.tab));
             });
 
             // Action buttons
@@ -1288,17 +1332,215 @@
             });
         });
 
+        // ============================================
+        // ASSESSMENT RUNNER
+        // ============================================
         function handleRunAssessment() {
             const idea = document.getElementById('ideaTextarea').value.trim();
             if (!idea) {
                 showToast('Please enter an idea description', 'warning');
                 return;
             }
-
+            if (!projectId) {
+                showToast('Please select a project first', 'warning');
+                return;
+            }
             setState('loading');
             runAnalysis(idea);
         }
 
+        async function runAnalysis(idea) {
+            renderAnalysisCards();
+            // Start progress animation
+            let progressTimer = setInterval(() => {
+                const cards = document.querySelectorAll('.analysis-card:not(.complete)');
+                if (cards.length > 0 && analysisProgress < 0.8) {
+                    analysisProgress += 0.02;
+                    updateProgressBar(analysisProgress);
+                }
+            }, 500);
+
+            try {
+                showToast('Calling n8n analysis pipeline...', 'info');
+
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_id: projectId,
+                        idea_description: idea
+                    })
+                });
+
+                clearInterval(progressTimer);
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`Webhook returned ${response.status}: ${errText}`);
+                }
+
+                // Mark all analysis cards complete
+                for (let i = 0; i < ANALYSES.length; i++) {
+                    completeAnalysis(i);
+                    await new Promise(r => setTimeout(r, 200));
+                }
+
+                let webhookData;
+                const responseText = await response.text();
+                try {
+                    webhookData = JSON.parse(responseText);
+                } catch (e) {
+                    // Sometimes n8n returns non-JSON on success
+                    webhookData = { success: true, feasibility_score: 0 };
+                }
+
+                console.log('Webhook response:', webhookData);
+
+                // Now fetch detailed analysis from _stage2_results sheet
+                showToast('Loading detailed analysis results...', 'info');
+                const detailedAnalyses = await fetchDetailedResults(projectId);
+
+                // Build combined display data
+                const displayData = buildDisplayData(webhookData, detailedAnalyses, idea);
+                displayResults(displayData);
+
+            } catch (error) {
+                clearInterval(progressTimer);
+                console.error('Analysis failed:', error);
+                showToast(`Analysis failed: ${error.message}`, 'error');
+
+                // Show error state with option to retry
+                document.getElementById('loadingSection').innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                        <h2 style="color: var(--accent-red); margin-bottom: 12px;">Analysis Failed</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 8px;">${error.message}</p>
+                        <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 13px;">
+                            Check that the n8n workflow is active and credentials are configured.
+                        </p>
+                        <button onclick="setState('input')" style="padding: 12px 24px; background: var(--accent-blue); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                            ← Back to Input
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // ============================================
+        // BUILD DISPLAY DATA FROM WEBHOOK + SHEETS
+        // ============================================
+        function buildDisplayData(webhook, analyses, idea) {
+            const data = {
+                feasibility_score: webhook.feasibility_score || 0,
+                ci_score: webhook.ci_score || 0,
+                bi_score: webhook.bi_score || 0,
+                cti_score: webhook.cti_score || 0,
+                go_no_go: webhook.go_no_go || 'UNKNOWN',
+                executive_summary: webhook.executive_summary || '',
+                web_search: { key_insights: [], opportunities: [], risks: [] },
+                competitors: [],
+                adjacent_solutions: [],
+                customer_evidence: [],
+                tam_snapshot: { tam: 'N/A', sam: 'N/A', som: 'N/A', key_markets: [], growth_rate: 'N/A' },
+                key_questions: []
+            };
+
+            if (!analyses) return data;
+
+            // Parse general_web_search
+            if (analyses.general_web_search) {
+                const ws = tryParseJSON(analyses.general_web_search);
+                if (ws) {
+                    data.web_search.key_insights = ws.key_insights || ws.insights || [];
+                    data.web_search.opportunities = ws.opportunities || [];
+                    data.web_search.risks = ws.risks || [];
+                    if (ws.key_questions) data.key_questions = ws.key_questions;
+                } else {
+                    // Raw text fallback
+                    data.web_search._raw = analyses.general_web_search;
+                }
+            }
+
+            // Parse competitor_eval
+            if (analyses.competitor_eval) {
+                const ce = tryParseJSON(analyses.competitor_eval);
+                if (ce && Array.isArray(ce.competitors || ce)) {
+                    const comps = ce.competitors || ce;
+                    data.competitors = comps.map(c => ({
+                        name: c.name || c.competitor || 'Unknown',
+                        feature_available: c.feature_available === true || c.feature_available === 'yes',
+                        status: c.status || c.zuora_status || c.availability || 'Unknown',
+                        gap_level: c.gap_level || c.gap || 'medium'
+                    }));
+                } else {
+                    data.competitors._raw = analyses.competitor_eval;
+                }
+            }
+
+            // Parse adjacent_solutions
+            if (analyses.adjacent_solutions) {
+                const adj = tryParseJSON(analyses.adjacent_solutions);
+                if (adj && Array.isArray(adj.adjacent_solutions || adj.solutions || adj)) {
+                    const sols = adj.adjacent_solutions || adj.solutions || adj;
+                    data.adjacent_solutions = sols.map(s => ({
+                        industry: s.industry || 'Other',
+                        solution: s.solution || s.name || '',
+                        transferable: s.transferable || s.transferable_mechanisms || s.insights || ''
+                    }));
+                } else {
+                    data.adjacent_solutions._raw = analyses.adjacent_solutions;
+                }
+            }
+
+            // Parse customer_rag
+            if (analyses.customer_rag) {
+                const cr = tryParseJSON(analyses.customer_rag);
+                if (cr && Array.isArray(cr.customer_evidence || cr.evidence || cr.signals || cr)) {
+                    const evs = cr.customer_evidence || cr.evidence || cr.signals || cr;
+                    data.customer_evidence = evs.map(e => ({
+                        quote: e.quote || e.evidence || e.text || '',
+                        company: e.company || e.source || 'Unknown',
+                        severity: e.severity || e.priority || 'medium',
+                        segment: e.segment || e.market || ''
+                    }));
+                } else {
+                    data.customer_evidence._raw = analyses.customer_rag;
+                }
+            }
+
+            // Parse tam_snapshot
+            if (analyses.tam_snapshot) {
+                const tam = tryParseJSON(analyses.tam_snapshot);
+                if (tam) {
+                    data.tam_snapshot.tam = tam.tam || tam.TAM || tam.total_addressable_market || 'N/A';
+                    data.tam_snapshot.sam = tam.sam || tam.SAM || tam.serviceable_available_market || 'N/A';
+                    data.tam_snapshot.som = tam.som || tam.SOM || tam.serviceable_obtainable_market || 'N/A';
+                    data.tam_snapshot.key_markets = tam.key_markets || tam.key_segments || tam.segments || [];
+                    data.tam_snapshot.growth_rate = tam.growth_rate || tam.cagr || tam.CAGR || 'N/A';
+                    if (tam.key_questions) data.key_questions = [...data.key_questions, ...tam.key_questions];
+                } else {
+                    data.tam_snapshot._raw = analyses.tam_snapshot;
+                }
+            }
+
+            // Generate key questions if none parsed
+            if (data.key_questions.length === 0) {
+                data.key_questions = [
+                    `What is the primary customer pain point this idea solves?`,
+                    `Who are the first 3 target customers to validate with?`,
+                    `What existing solutions do customers use today?`,
+                    `What is the minimum viable feature set for a first release?`,
+                    `What are the biggest technical risks?`,
+                    `How will success be measured after 90 days?`
+                ];
+            }
+
+            return data;
+        }
+
+        // ============================================
+        // UI STATE MANAGEMENT
+        // ============================================
         function setState(newState) {
             currentState = newState;
             document.getElementById('inputSection').classList.remove('active');
@@ -1309,10 +1551,16 @@
             switch (newState) {
                 case 'input':
                     document.getElementById('inputSection').classList.add('active');
+                    // Reset loading section HTML in case it was replaced with error
+                    document.getElementById('loadingSection').innerHTML = `
+                        <h2 class="loading-header">Running 5 Parallel Analyses...</h2>
+                        <div class="analysis-cards" id="analysisCards"></div>
+                        <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+                    `;
+                    analysisProgress = 0;
                     break;
                 case 'loading':
                     document.getElementById('loadingSection').classList.add('active');
-                    renderAnalysisCards();
                     break;
                 case 'results':
                     document.getElementById('resultsSection').classList.add('active');
@@ -1323,6 +1571,7 @@
 
         function renderAnalysisCards() {
             const container = document.getElementById('analysisCards');
+            if (!container) return;
             container.innerHTML = '';
             ANALYSES.forEach(analysis => {
                 const card = document.createElement('div');
@@ -1330,202 +1579,186 @@
                 card.dataset.analysis = analysis;
                 card.innerHTML = `
                     <div class="analysis-name">${analysis}</div>
-                    <div class="status-indicator">
-                        <div class="spinner"></div>
-                    </div>
+                    <div class="status-indicator"><div class="spinner"></div></div>
                 `;
                 container.appendChild(card);
             });
         }
 
-        async function runAnalysis(idea) {
-            if (DEMO_MODE) {
-                // Simulate sequential completion
-                await simulateAnalysis();
-            } else {
-                // Call webhook
-                try {
-                    const response = await fetch(WEBHOOK_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            project_id: projectId,
-                            idea_description: idea
-                        })
-                    });
-
-                    if (!response.ok) throw new Error('API Error');
-                    const data = await response.json();
-                    displayResults(data);
-                } catch (error) {
-                    console.error('Error:', error);
-                    showToast('Analysis failed. Using demo data.', 'error');
-                    await simulateAnalysis();
-                }
-            }
-        }
-
-        async function simulateAnalysis() {
-            for (let i = 0; i < ANALYSES.length; i++) {
-                await new Promise(resolve => setTimeout(resolve, 800));
-                completeAnalysis(i);
-            }
-            displayResults(DEMO_DATA);
-        }
-
         function completeAnalysis(index) {
-            const card = document.querySelectorAll('.analysis-card')[index];
-            card.classList.add('complete');
-            const indicator = card.querySelector('.status-indicator');
-            indicator.innerHTML = '<div class="checkmark">✓</div>';
-            updateProgressBar((index + 1) / ANALYSES.length);
+            const cards = document.querySelectorAll('.analysis-card');
+            if (cards[index]) {
+                cards[index].classList.add('complete');
+                cards[index].querySelector('.status-indicator').innerHTML = '<div class="checkmark">✓</div>';
+                updateProgressBar((index + 1) / ANALYSES.length);
+            }
         }
 
         function updateProgressBar(progress) {
             analysisProgress = progress;
-            document.getElementById('progressBar').style.width = (progress * 100) + '%';
+            const bar = document.getElementById('progressBar');
+            if (bar) bar.style.width = (progress * 100) + '%';
         }
 
+        // ============================================
+        // DISPLAY RESULTS
+        // ============================================
         function displayResults(data) {
             // Feasibility banner
-            document.getElementById('gaugeScore').textContent = data.feasibility_score;
-            document.getElementById('ciScore').textContent = data.ci_score;
-            document.getElementById('biScore').textContent = data.bi_score;
-            document.getElementById('ctiScore').textContent = data.cti_score;
+            const score = parseFloat(data.feasibility_score) || 0;
+            document.getElementById('gaugeScore').textContent = score.toFixed(1);
+            document.getElementById('ciScore').textContent = (parseFloat(data.ci_score) || 0).toFixed(1);
+            document.getElementById('biScore').textContent = (parseFloat(data.bi_score) || 0).toFixed(1);
+            document.getElementById('ctiScore').textContent = (parseFloat(data.cti_score) || 0).toFixed(1);
 
+            // Update gauge visual
             const gauge = document.getElementById('circularGauge');
+            const degrees = (score / 10) * 360;
             gauge.classList.remove('low', 'medium', 'high');
-            if (data.feasibility_score >= 7) {
+            if (score >= 7) {
                 gauge.classList.add('high');
+                gauge.style.background = `conic-gradient(var(--success) 0deg, var(--success) ${degrees}deg, var(--border-color) ${degrees}deg)`;
                 document.getElementById('goBadge').className = 'go-badge proceed';
                 document.getElementById('goBadge').innerHTML = '<span>✓</span> Proceed';
-            } else if (data.feasibility_score >= 5) {
+            } else if (score >= 5) {
                 gauge.classList.add('medium');
+                gauge.style.background = `conic-gradient(var(--warning) 0deg, var(--warning) ${degrees}deg, var(--border-color) ${degrees}deg)`;
                 document.getElementById('goBadge').className = 'go-badge reconsider';
                 document.getElementById('goBadge').innerHTML = '<span>!</span> Reconsider';
             } else {
                 gauge.classList.add('low');
+                gauge.style.background = `conic-gradient(var(--danger) 0deg, var(--danger) ${degrees}deg, var(--border-color) ${degrees}deg)`;
                 document.getElementById('goBadge').className = 'go-badge no-proceed';
                 document.getElementById('goBadge').innerHTML = '<span>✗</span> Do Not Proceed';
             }
 
-            // Web Search
+            // Executive Summary (if available, show above tabs)
+            if (data.executive_summary) {
+                const banner = document.querySelector('.feasibility-banner');
+                const existingSummary = document.getElementById('execSummary');
+                if (existingSummary) existingSummary.remove();
+                banner.insertAdjacentHTML('afterend', `
+                    <div id="execSummary" style="background: rgba(30, 41, 59, 0.8); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+                        <div class="section-header">Executive Summary</div>
+                        <p style="color: var(--text-primary); font-size: 14px; line-height: 1.8;">${data.executive_summary}</p>
+                    </div>
+                `);
+            }
+
+            // Web Search Tab
             const webSearchContent = document.getElementById('webSearchContent');
-            webSearchContent.innerHTML = `
-                <ul class="insights-list">
-                    ${data.web_search.key_insights.map(insight => `<li>${insight}</li>`).join('')}
-                </ul>
-                <div class="section-header">Opportunities</div>
-                <ul class="insights-list">
-                    ${data.web_search.opportunities.map(opp => `<li>${opp}</li>`).join('')}
-                </ul>
-                <div class="section-header">Risks</div>
-                <ul class="insights-list">
-                    ${data.web_search.risks.map(risk => `<li>${risk}</li>`).join('')}
-                </ul>
-            `;
+            if (data.web_search._raw) {
+                webSearchContent.innerHTML = parseAnalysisText(data.web_search._raw);
+            } else if (data.web_search.key_insights.length > 0) {
+                webSearchContent.innerHTML = `
+                    <ul class="insights-list">
+                        ${data.web_search.key_insights.map(i => `<li>${i}</li>`).join('')}
+                    </ul>
+                    ${data.web_search.opportunities.length ? `<div class="section-header">Opportunities</div><ul class="insights-list">${data.web_search.opportunities.map(o => `<li>${o}</li>`).join('')}</ul>` : ''}
+                    ${data.web_search.risks.length ? `<div class="section-header">Risks</div><ul class="insights-list">${data.web_search.risks.map(r => `<li>${r}</li>`).join('')}</ul>` : ''}
+                `;
+            } else {
+                webSearchContent.innerHTML = '<p style="color: var(--text-secondary);">Web search analysis pending. Data will appear after the n8n pipeline completes.</p>';
+            }
 
-            // Competitors
+            // Competitors Tab
             const competitorTable = document.getElementById('competitorsTable');
-            competitorTable.innerHTML = `
-                <thead>
-                    <tr>
-                        <th>Competitor</th>
-                        <th>Feature Available</th>
-                        <th>Product Status</th>
-                        <th>Gap Level</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${data.competitors.map(comp => `
-                        <tr>
-                            <td>${comp.name}</td>
-                            <td><span class="feature-badge ${comp.feature_available ? 'yes' : 'no'}">${comp.feature_available ? 'Yes' : 'No'}</span></td>
-                            <td>${comp.product_status}</td>
-                            <td><span class="gap-badge ${comp.gap_level}">${comp.gap_level.charAt(0).toUpperCase() + comp.gap_level.slice(1)}</span></td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
+            if (data.competitors._raw) {
+                competitorTable.innerHTML = `<tr><td colspan="4">${parseAnalysisText(data.competitors._raw)}</td></tr>`;
+            } else if (data.competitors.length > 0) {
+                competitorTable.innerHTML = `
+                    <thead><tr><th>Competitor</th><th>Feature Available</th><th>Status</th><th>Gap Level</th></tr></thead>
+                    <tbody>
+                        ${data.competitors.map(c => `<tr>
+                            <td>${c.name}</td>
+                            <td><span class="feature-badge ${c.feature_available ? 'yes' : 'no'}">${c.feature_available ? 'Yes' : 'No'}</span></td>
+                            <td>${c.status}</td>
+                            <td><span class="gap-badge ${c.gap_level}">${(c.gap_level || '').charAt(0).toUpperCase() + (c.gap_level || '').slice(1)}</span></td>
+                        </tr>`).join('')}
+                    </tbody>`;
+            } else {
+                competitorTable.innerHTML = '<tr><td style="color: var(--text-secondary);">Competitor analysis pending.</td></tr>';
+            }
 
-            // Adjacent Solutions
+            // Adjacent Solutions Tab
             const adjacentList = document.getElementById('adjacentList');
-            adjacentList.innerHTML = data.adjacent_solutions.map(sol => `
-                <li class="adjacent-item">
-                    <div class="adjacent-industry">${sol.industry}</div>
-                    <div class="adjacent-solution">${sol.solution}</div>
-                    <div class="adjacent-transferable"><strong>Transferable:</strong> ${sol.transferable}</div>
-                </li>
-            `).join('');
+            if (data.adjacent_solutions._raw) {
+                adjacentList.innerHTML = `<li>${parseAnalysisText(data.adjacent_solutions._raw)}</li>`;
+            } else if (data.adjacent_solutions.length > 0) {
+                adjacentList.innerHTML = data.adjacent_solutions.map(s => `
+                    <li class="adjacent-item">
+                        <div class="adjacent-industry">${s.industry}</div>
+                        <div class="adjacent-solution">${s.solution}</div>
+                        <div class="adjacent-transferable"><strong>Transferable:</strong> ${s.transferable}</div>
+                    </li>
+                `).join('');
+            } else {
+                adjacentList.innerHTML = '<li style="color: var(--text-secondary);">Adjacent solutions analysis pending.</li>';
+            }
 
-            // Customer Evidence
+            // Customer Evidence Tab
             const customerContent = document.getElementById('customerEvidenceContent');
-            customerContent.innerHTML = data.customer_evidence.map(cust => `
-                <div class="customer-quote">
-                    <div class="quote-text">"${cust.quote}"</div>
-                    <div class="quote-meta">
-                        <span class="quote-company">— ${cust.company}</span>
-                        <span class="severity-badge ${cust.severity}">${cust.severity.charAt(0).toUpperCase() + cust.severity.slice(1)}</span>
-                        <span class="segment-tag">${cust.segment}</span>
+            if (data.customer_evidence._raw) {
+                customerContent.innerHTML = parseAnalysisText(data.customer_evidence._raw);
+            } else if (data.customer_evidence.length > 0) {
+                customerContent.innerHTML = data.customer_evidence.map(c => `
+                    <div class="customer-quote">
+                        <div class="quote-text">"${c.quote}"</div>
+                        <div class="quote-meta">
+                            <span class="quote-company">— ${c.company}</span>
+                            ${c.severity ? `<span class="severity-badge ${c.severity}">${c.severity.charAt(0).toUpperCase() + c.severity.slice(1)}</span>` : ''}
+                            ${c.segment ? `<span class="segment-tag">${c.segment}</span>` : ''}
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `).join('');
+            } else {
+                customerContent.innerHTML = '<p style="color: var(--text-secondary);">Customer evidence analysis pending.</p>';
+            }
 
-            // TAM
+            // TAM Tab
             const tamContent = document.getElementById('tamContent');
-            tamContent.innerHTML = `
-                <div class="tam-metrics">
-                    <div class="metric-box">
-                        <div class="metric-label">Total Addressable Market</div>
-                        <div class="metric-value">${data.tam_snapshot.tam}</div>
+            if (data.tam_snapshot._raw) {
+                tamContent.innerHTML = parseAnalysisText(data.tam_snapshot._raw);
+            } else {
+                tamContent.innerHTML = `
+                    <div class="tam-metrics">
+                        <div class="metric-box"><div class="metric-label">Total Addressable Market</div><div class="metric-value">${data.tam_snapshot.tam}</div></div>
+                        <div class="metric-box"><div class="metric-label">Serviceable Available Market</div><div class="metric-value">${data.tam_snapshot.sam}</div></div>
+                        <div class="metric-box"><div class="metric-label">Serviceable Obtainable Market</div><div class="metric-value">${data.tam_snapshot.som}</div></div>
+                        <div class="metric-box"><div class="metric-label">Growth Rate</div><div class="metric-value">${data.tam_snapshot.growth_rate}</div></div>
                     </div>
-                    <div class="metric-box">
-                        <div class="metric-label">Serviceable Available Market</div>
-                        <div class="metric-value">${data.tam_snapshot.sam}</div>
-                    </div>
-                    <div class="metric-box">
-                        <div class="metric-label">Serviceable Obtainable Market</div>
-                        <div class="metric-value">${data.tam_snapshot.som}</div>
-                    </div>
-                    <div class="metric-box">
-                        <div class="metric-label">Growth Rate</div>
-                        <div class="metric-value">${data.tam_snapshot.growth_rate}</div>
-                    </div>
-                </div>
-                <div class="section-header">Key Markets</div>
-                <ul class="markets-list">
-                    ${data.tam_snapshot.key_markets.map(market => `<li>${market}</li>`).join('')}
-                </ul>
-            `;
+                    ${data.tam_snapshot.key_markets.length ? `<div class="section-header">Key Markets</div><ul class="markets-list">${data.tam_snapshot.key_markets.map(m => `<li>${m}</li>`).join('')}</ul>` : ''}
+                `;
+            }
 
             // Key Questions
             const questionsList = document.getElementById('questionsList');
-            questionsList.innerHTML = data.key_questions.map(question => `
+            questionsList.innerHTML = data.key_questions.map(q => `
                 <li class="question-item">
                     <input type="checkbox" class="question-checkbox">
-                    <span class="question-text">${question}</span>
+                    <span class="question-text">${q}</span>
                 </li>
             `).join('');
 
             setState('results');
         }
 
+        // ============================================
+        // TAB NAVIGATION
+        // ============================================
         function switchTab(tabName) {
-            // Update buttons
             document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.dataset.tab === tabName) {
-                    btn.classList.add('active');
-                }
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
             });
-
-            // Update panels
             document.querySelectorAll('.tab-panel').forEach(panel => {
                 panel.classList.remove('active');
             });
             document.getElementById(tabName + '-panel').classList.add('active');
         }
 
+        // ============================================
+        // ACTION HANDLERS
+        // ============================================
         function handleSaveToDrive() {
             showToast('Saving to Google Drive... (feature coming soon)', 'warning');
         }
@@ -1542,7 +1775,6 @@
             toast.className = `toast ${type}`;
             toast.textContent = message;
             document.body.appendChild(toast);
-
             setTimeout(() => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateX(400px)';
