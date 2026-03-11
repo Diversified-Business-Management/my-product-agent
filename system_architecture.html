@@ -1,828 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Architecture & Health - My Product Agent</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        :root {
-            --primary-dark: #0f172a;
-            --secondary-dark: #1e293b;
-            --card-dark: #1e293b;
-            --text-light: #e2e8f0;
-            --text-muted: #94a3b8;
-            --accent-blue: #60a5fa;
-            --accent-purple: #a78bfa;
-            --success-green: #10b981;
-            --warning-amber: #f59e0b;
-            --danger-rose: #f43f5e;
-            --border-color: rgba(96, 165, 250, 0.2);
-            --bg-accent: rgba(96, 165, 250, 0.1);
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--secondary-dark) 100%);
-            color: var(--text-light);
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-
-        /* Header */
-        .header {
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8));
-            backdrop-filter: blur(10px);
-            padding: 2rem 2rem 2.5rem;
-            border-bottom: 1px solid rgba(96, 165, 250, 0.1);
-            margin-bottom: 2rem;
-        }
-        .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            color: var(--accent-blue);
-            text-decoration: none;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
-            transition: color 0.3s;
-        }
-        .back-link:hover { color: var(--accent-purple); }
-        .header-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-        .header-title {
-            font-size: 2.4rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .refresh-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1.2rem;
-            background: var(--bg-accent);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--accent-blue);
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .refresh-btn:hover { background: rgba(96,165,250,0.2); }
-        .refresh-btn .icon { display: inline-block; transition: transform 0.3s; }
-        .refresh-btn.spinning .icon { animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .overall-status {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-size: 0.95rem;
-        }
-        .overall-dot {
-            width: 10px; height: 10px;
-            border-radius: 50%;
-            background: var(--text-muted);
-        }
-        .overall-dot.healthy { background: var(--success-green); animation: pulse 2s infinite; }
-        .overall-dot.degraded { background: var(--warning-amber); }
-        .overall-dot.down { background: var(--danger-rose); }
-        @keyframes pulse {
-            0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(16,185,129,0.7); }
-            50% { opacity:0.7; box-shadow: 0 0 0 6px rgba(16,185,129,0); }
-        }
-        .last-checked { color: var(--text-muted); font-size: 0.8rem; }
-
-        /* Main container */
-        .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem 2rem; }
-        .section-title {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            color: var(--text-light);
-        }
-        .section-title .subtitle { color: var(--text-muted); font-size: 0.85rem; font-weight: 400; margin-left: 0.5rem; }
-
-        /* Architecture Diagram */
-        .arch-section { margin-bottom: 3rem; }
-        .arch-diagram {
-            background: var(--card-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 2rem;
-            overflow-x: auto;
-        }
-        .arch-layer {
-            margin-bottom: 1.5rem;
-            position: relative;
-        }
-        .arch-layer:last-child { margin-bottom: 0; }
-        .layer-label {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            margin-bottom: 0.75rem;
-            padding: 0.25rem 0.75rem;
-            background: rgba(96,165,250,0.08);
-            border-radius: 4px;
-        }
-        .layer-nodes {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.6rem;
-        }
-        .arch-node {
-            padding: 0.45rem 0.85rem;
-            background: rgba(96,165,250,0.08);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.82rem;
-            color: var(--text-light);
-            white-space: nowrap;
-            transition: all 0.2s;
-        }
-        .arch-node:hover { background: rgba(96,165,250,0.15); transform: translateY(-1px); }
-        .arch-node.has-status { display: inline-flex; align-items: center; gap: 0.4rem; }
-        .arch-node .sdot {
-            width: 7px; height: 7px;
-            border-radius: 50%;
-            background: var(--text-muted);
-            flex-shrink: 0;
-        }
-        .arch-node .sdot.healthy { background: var(--success-green); animation: pulse 2s infinite; }
-        .arch-node .sdot.slow { background: var(--warning-amber); }
-        .arch-node .sdot.down { background: var(--danger-rose); }
-
-        /* Flow arrows between layers */
-        .flow-arrow {
-            text-align: center;
-            padding: 0.4rem 0;
-            color: var(--text-muted);
-            font-size: 1.2rem;
-            opacity: 0.5;
-        }
-
-        /* Layer color accents */
-        .layer-frontend .layer-label { color: var(--accent-blue); }
-        .layer-frontend .arch-node { border-color: rgba(96,165,250,0.3); }
-        .layer-orchestration .layer-label { color: var(--accent-purple); }
-        .layer-orchestration .arch-node { border-color: rgba(167,139,250,0.3); background: rgba(167,139,250,0.08); }
-        .layer-services .layer-label { color: var(--success-green); }
-        .layer-services .arch-node { border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.08); }
-
-        /* Workflow Cards */
-        .workflow-section { margin-bottom: 3rem; }
-        .workflow-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 1rem;
-        }
-        .workflow-card {
-            background: var(--card-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 1.3rem;
-            transition: all 0.3s;
-        }
-        .workflow-card:hover { border-color: rgba(96,165,250,0.4); transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-        .wf-name {
-            font-size: 1.05rem;
-            font-weight: 600;
-            margin-bottom: 0.6rem;
-            color: var(--text-light);
-        }
-        .wf-endpoint {
-            font-family: 'SFMono-Regular', Consolas, monospace;
-            font-size: 0.78rem;
-            color: var(--accent-blue);
-            background: rgba(96,165,250,0.08);
-            padding: 0.3rem 0.6rem;
-            border-radius: 4px;
-            margin-bottom: 0.8rem;
-            display: inline-block;
-            word-break: break-all;
-        }
-        .wf-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 1rem;
-            margin-top: 0.7rem;
-        }
-        .wf-col label {
-            display: block;
-            font-size: 0.72rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: var(--text-muted);
-            margin-bottom: 0.3rem;
-        }
-        .wf-col .val {
-            font-size: 0.85rem;
-            color: var(--text-light);
-        }
-        .wf-services {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.4rem;
-        }
-        .wf-svc {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            font-size: 0.78rem;
-            padding: 0.2rem 0.5rem;
-            background: rgba(16,185,129,0.08);
-            border: 1px solid rgba(16,185,129,0.2);
-            border-radius: 4px;
-            color: var(--text-light);
-        }
-        .wf-svc .sdot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: var(--text-muted);
-            flex-shrink: 0;
-        }
-        .wf-svc .sdot.healthy { background: var(--success-green); }
-        .wf-svc .sdot.slow { background: var(--warning-amber); }
-        .wf-svc .sdot.down { background: var(--danger-rose); }
-
-        /* Health Panel */
-        .health-section { margin-bottom: 3rem; }
-        .health-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 1rem;
-        }
-        .health-card {
-            background: var(--card-dark);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 1.2rem;
-            transition: all 0.3s;
-        }
-        .health-card:hover { border-color: rgba(96,165,250,0.4); }
-        .hc-top {
-            display: flex;
-            align-items: center;
-            gap: 0.7rem;
-            margin-bottom: 0.8rem;
-        }
-        .hc-icon {
-            width: 36px; height: 36px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            flex-shrink: 0;
-        }
-        .hc-icon.gh { background: rgba(96,165,250,0.15); }
-        .hc-icon.n8n { background: rgba(167,139,250,0.15); }
-        .hc-icon.claude { background: rgba(251,146,60,0.15); }
-        .hc-icon.sheets { background: rgba(16,185,129,0.15); }
-        .hc-icon.pine { background: rgba(96,165,250,0.15); }
-        .hc-icon.drive { background: rgba(250,204,21,0.15); }
-        .hc-icon.forms { background: rgba(167,139,250,0.15); }
-        .hc-name { font-weight: 600; font-size: 0.95rem; }
-        .hc-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.2rem 0.6rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .hc-badge.checking { background: rgba(148,163,184,0.15); color: var(--text-muted); }
-        .hc-badge.healthy { background: rgba(16,185,129,0.15); color: var(--success-green); }
-        .hc-badge.slow { background: rgba(245,158,11,0.15); color: var(--warning-amber); }
-        .hc-badge.down { background: rgba(244,63,94,0.15); color: var(--danger-rose); }
-        .hc-badge .bdot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-        }
-        .hc-badge.healthy .bdot { animation: pulse 2s infinite; }
-        .hc-details {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 0.6rem;
-        }
-        .hc-latency { font-size: 0.82rem; color: var(--text-muted); }
-        .hc-latency span { color: var(--text-light); font-weight: 600; }
-        .hc-type {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            padding: 0.15rem 0.45rem;
-            background: var(--bg-accent);
-            border-radius: 3px;
-            color: var(--text-muted);
-        }
-        .hc-checked { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.4rem; }
-
-        /* Footer */
-        .footer {
-            background: linear-gradient(135deg, rgba(15,23,42,0.8), rgba(30,41,59,0.8));
-            border-top: 1px solid rgba(96,165,250,0.1);
-            padding: 2rem;
-            margin-top: 2rem;
-            text-align: center;
-            color: var(--text-muted);
-        }
-        .footer-content { max-width: 1200px; margin: 0 auto; }
-        .footer-links { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; flex-wrap: wrap; }
-        .footer-link { color: var(--accent-blue); text-decoration: none; transition: color 0.3s; }
-        .footer-link:hover { color: var(--accent-purple); }
-        .footer-text { font-size: 0.9rem; }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .header-title { font-size: 1.6rem; }
-            .header-row { flex-direction: column; align-items: flex-start; }
-            .workflow-grid { grid-template-columns: 1fr; }
-            .health-grid { grid-template-columns: 1fr 1fr; }
-            .footer-links { flex-direction: column; gap: 1rem; }
-        }
-        @media (max-width: 480px) {
-            .health-grid { grid-template-columns: 1fr; }
-            .container { padding: 0 1rem 1rem; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Product Agent â System Architecture & Health</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root { --primary: #1F4E79; --primary-light: #2E75B6; --accent: #FF6B35; --success: #059669; --warning: #D97706; --danger: #DC2626; --bg: #F8FAFC; --card: #FFF; --text: #1E293B; --text-light: #64748B; --border: #E2E8F0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); }
+.header { background: var(--primary); color: white; padding: 0 32px; display: flex; justify-content: space-between; align-items: center; height: 56px; }
+.header-left { display: flex; align-items: center; gap: 16px; }
+.header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.header-badge { font-size: 10px; background: rgba(255,255,255,0.15); padding: 3px 8px; border-radius: 4px; font-weight: 600; letter-spacing: 0.5px; }
+.btn { padding: 7px 14px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-outline { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.35); }
+.btn-outline:hover { background: rgba(255,255,255,0.1); }
+.nav { background: white; border-bottom: 1px solid var(--border); display: flex; padding: 0 32px; overflow-x: auto; }
+.nav a { padding: 11px 16px; font-size: 13px; font-weight: 600; color: var(--text-light); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; text-decoration: none; white-space: nowrap; }
+.nav a.active { color: var(--primary); border-bottom-color: var(--primary); }
+.nav a:hover { color: var(--primary); }
+.nav-divider { width: 1px; background: var(--border); margin: 8px 4px; }
+.container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+.status-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.status-summary { display: flex; gap: 16px; align-items: center; }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+.status-pill-ok { background: #D1FAE5; color: #065F46; }
+.status-pill-warn { background: #FEF3C7; color: #92400E; }
+.status-pill-err { background: #FEE2E2; color: #991B1B; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot-ok { background: var(--success); }
+.status-dot-warn { background: var(--warning); }
+.status-dot-err { background: var(--danger); }
+.status-dot-checking { background: var(--text-light); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+.last-checked { font-size: 12px; color: var(--text-light); }
+.refresh-btn { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: white; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 5px; transition: all 0.15s; }
+.refresh-btn:hover { border-color: var(--primary-light); color: var(--primary); }
+.refresh-btn.spinning .refresh-icon { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.refresh-icon { display: inline-block; }
+.section { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+.section-header { padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.section-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.section-badge { font-size: 11px; background: #EFF6FF; color: var(--primary); padding: 3px 8px; border-radius: 4px; font-weight: 600; }
+.arch-diagram { padding: 24px; }
+.arch-layer { margin-bottom: 20px; }
+.arch-layer-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.arch-layer-line { flex: 1; height: 1px; background: var(--border); }
+.arch-nodes { display: flex; flex-wrap: wrap; gap: 8px; }
+.arch-node { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: 600; background: #F8FAFC; transition: all 0.15s; }
+.arch-node:hover { border-color: var(--primary-light); box-shadow: 0 1px 4px rgba(31,78,121,0.08); }
+.arch-node-primary { border-color: var(--primary-light); background: #EFF6FF; color: var(--primary); }
+.arch-node-service { position: relative; padding-left: 20px; }
+.arch-node-service .health-dot { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; }
+.arch-flow { display: flex; justify-content: center; padding: 8px 0; }
+.arch-arrow { color: var(--text-light); font-size: 14px; }
+.health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 16px; }
+.health-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: all 0.15s; }
+.health-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.health-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.health-name { font-size: 13px; font-weight: 700; }
+.health-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+.health-badge-ok { background: #D1FAE5; color: #065F46; }
+.health-badge-slow { background: #FEF3C7; color: #92400E; }
+.health-badge-down { background: #FEE2E2; color: #991B1B; }
+.health-badge-checking { background: #F1F5F9; color: var(--text-light); }
+.health-detail { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-light); }
+.health-type { font-size: 10px; padding: 2px 6px; border-radius: 3px; background: #F1F5F9; color: var(--text-light); font-weight: 600; margin-top: 6px; display: inline-block; }
+.workflow-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 14px; padding: 16px; }
+.workflow-card { border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.workflow-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.wf-name { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.wf-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #F1F5F9; align-items: center; }
+.wf-row:last-child { border-bottom: none; }
+.wf-label { color: var(--text-light); font-weight: 600; }
+.wf-value { font-weight: 500; }
+.wf-endpoint { font-family: 'SF Mono', Monaco, monospace; font-size: 11px; background: #F1F5F9; padding: 2px 6px; border-radius: 3px; }
+.wf-services { display: flex; flex-wrap: wrap; gap: 4px; }
+.wf-svc-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 7px; border-radius: 3px; background: #EFF6FF; color: var(--primary); font-weight: 600; }
+.wf-svc-dot { width: 5px; height: 5px; border-radius: 50%; }
+.footer { text-align: center; padding: 24px; font-size: 12px; color: var(--text-light); border-top: 1px solid var(--border); margin-top: 40px; }
+.footer a { color: var(--primary-light); text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+@media (max-width: 768px) { .workflow-grid { grid-template-columns: 1fr; } .health-grid { grid-template-columns: repeat(2, 1fr); } .status-bar { flex-direction: column; gap: 12px; align-items: flex-start; } }
+</style>
 </head>
 <body>
-
-<!-- Header -->
 <div class="header">
-    <div class="header-content">
-        <a href="index.html" class="back-link">&larr; Back to Portal</a>
-        <div class="header-row">
-            <h1 class="header-title">System Architecture & Health</h1>
-            <div class="header-controls">
-                <div class="overall-status">
-                    <div class="overall-dot" id="overallDot"></div>
-                    <span id="overallLabel">Checking...</span>
-                </div>
-                <button class="refresh-btn" id="refreshBtn" onclick="runAllChecks()">
-                    <span class="icon">&#x21bb;</span> Refresh
-                </button>
-            </div>
-        </div>
-        <div class="last-checked" id="lastChecked"></div>
-    </div>
+  <div class="header-left"><h1>My Product Agent</h1><span class="header-badge">SYSTEM ARCHITECTURE</span></div>
+  <div style="display:flex;gap:10px;align-items:center;"><a href="index.html" class="btn btn-outline">&larr; Dashboard</a></div>
 </div>
-
+<div class="nav">
+  <a href="index.html">Dashboard</a><a href="describe_idea.html">Idea Assessment</a><a href="interview_tracker.html">Interviews</a><a href="master_dashboard.html">Multi-Project</a>
+  <div class="nav-divider"></div>
+  <a href="commerce_expert.html">Commerce Expert</a><a href="system_architecture.html" class="active">Architecture</a>
+</div>
 <div class="container">
-
-    <!-- Section 1: Architecture Diagram -->
-    <section class="arch-section">
-        <h2 class="section-title">Architecture Overview <span class="subtitle">Data flow from frontend to services</span></h2>
-        <div class="arch-diagram">
-
-            <!-- Layer 1: Frontend -->
-            <div class="arch-layer layer-frontend">
-                <div class="layer-label">&#x1F310; Frontend &mdash; GitHub Pages</div>
-                <div class="layer-nodes">
-                    <div class="arch-node has-status"><span class="sdot" data-svc="github"></span> Portal (index)</div>
-                    <div class="arch-node">Create Project</div>
-                    <div class="arch-node">Describe Idea</div>
-                    <div class="arch-node">Research Hub</div>
-                    <div class="arch-node">Prioritization &amp; PRD</div>
-                    <div class="arch-node">Handoff</div>
-                    <div class="arch-node">Master Dashboard</div>
-                    <div class="arch-node">Interview Tracker</div>
-                    <div class="arch-node">Commerce Expert</div>
-                    <div class="arch-node">RAG Notebook</div>
-                    <div class="arch-node">Upload Content</div>
-                    <div class="arch-node">Project Wizard</div>
-                </div>
-            </div>
-
-            <div class="flow-arrow">&#x25BC; &#x25BC; &#x25BC; webhooks &#x25BC; &#x25BC; &#x25BC;</div>
-
-            <!-- Layer 2: Orchestration -->
-            <div class="arch-layer layer-orchestration">
-                <div class="layer-label">&#x2699;&#xFE0F; Orchestration &mdash; n8n Cloud</div>
-                <div class="layer-nodes">
-                    <div class="arch-node has-status"><span class="sdot" data-svc="n8n"></span> Create Project</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="n8n"></span> Analyze Idea</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="n8n"></span> Create Form</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="n8n"></span> Generate PRD</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="n8n"></span> Scrape Competitors</div>
-                </div>
-            </div>
-
-            <div class="flow-arrow">&#x25BC; &#x25BC; &#x25BC; API calls &#x25BC; &#x25BC; &#x25BC;</div>
-
-            <!-- Layer 3: Services -->
-            <div class="arch-layer layer-services">
-                <div class="layer-label">&#x26A1; Services</div>
-                <div class="layer-nodes">
-                    <div class="arch-node has-status"><span class="sdot" data-svc="claude"></span> Claude API</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="sheets"></span> Google Sheets</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="pinecone"></span> Pinecone</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="drive"></span> Google Drive</div>
-                    <div class="arch-node has-status"><span class="sdot" data-svc="forms"></span> Google Forms</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Section 2: Workflow Detail Cards -->
-    <section class="workflow-section">
-        <h2 class="section-title">Workflow Details <span class="subtitle">n8n webhook endpoints and service dependencies</span></h2>
-        <div class="workflow-grid">
-
-            <div class="workflow-card">
-                <div class="wf-name">Create Project</div>
-                <div class="wf-endpoint">/webhook/mpa-create-project</div>
-                <div class="wf-row">
-                    <div class="wf-col">
-                        <label>Services Called</label>
-                        <div class="wf-services">
-                            <span class="wf-svc"><span class="sdot" data-svc="drive"></span> Drive</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="sheets"></span> Sheets</span>
-                        </div>
-                    </div>
-                    <div class="wf-col">
-                        <label>Output</label>
-                        <div class="val">Folder + _projects row</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="workflow-card">
-                <div class="wf-name">Analyze Idea</div>
-                <div class="wf-endpoint">/webhook/mpa-analyze-idea</div>
-                <div class="wf-row">
-                    <div class="wf-col">
-                        <label>Services Called</label>
-                        <div class="wf-services">
-                            <span class="wf-svc"><span class="sdot" data-svc="claude"></span> Claude &times;5</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="pinecone"></span> Pinecone &times;2</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="sheets"></span> Sheets</span>
-                        </div>
-                    </div>
-                    <div class="wf-col">
-                        <label>Output</label>
-                        <div class="val">_stage2_results + score</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="workflow-card">
-                <div class="wf-name">Create Survey Form</div>
-                <div class="wf-endpoint">/webhook/mpa-create-form</div>
-                <div class="wf-row">
-                    <div class="wf-col">
-                        <label>Services Called</label>
-                        <div class="wf-services">
-                            <span class="wf-svc"><span class="sdot" data-svc="forms"></span> Forms</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="sheets"></span> Sheets</span>
-                        </div>
-                    </div>
-                    <div class="wf-col">
-                        <label>Output</label>
-                        <div class="val">Survey URL</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="workflow-card">
-                <div class="wf-name">Generate PRD</div>
-                <div class="wf-endpoint">/webhook/mpa-generate-prd</div>
-                <div class="wf-row">
-                    <div class="wf-col">
-                        <label>Services Called</label>
-                        <div class="wf-services">
-                            <span class="wf-svc"><span class="sdot" data-svc="claude"></span> Claude</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="sheets"></span> Sheets</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="drive"></span> Drive</span>
-                        </div>
-                    </div>
-                    <div class="wf-col">
-                        <label>Output</label>
-                        <div class="val">PRD document</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="workflow-card">
-                <div class="wf-name">Scrape Competitors</div>
-                <div class="wf-endpoint">/webhook/mpa-scrape-competitors</div>
-                <div class="wf-row">
-                    <div class="wf-col">
-                        <label>Services Called</label>
-                        <div class="wf-services">
-                            <span class="wf-svc"><span class="sdot" data-svc="claude"></span> Claude</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="pinecone"></span> Pinecone</span>
-                            <span class="wf-svc"><span class="sdot" data-svc="sheets"></span> Sheets</span>
-                        </div>
-                    </div>
-                    <div class="wf-col">
-                        <label>Output</label>
-                        <div class="val">Competitor vectors</div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </section>
-
-    <!-- Section 3: Service Health Panel -->
-    <section class="health-section">
-        <h2 class="section-title">Service Health <span class="subtitle">Live connectivity checks &mdash; auto-refreshes every 60s</span></h2>
-        <div class="health-grid">
-
-            <div class="health-card" id="card-github">
-                <div class="hc-top">
-                    <div class="hc-icon gh">&#x1F310;</div>
-                    <div>
-                        <div class="hc-name">GitHub Pages</div>
-                        <div class="hc-badge checking"><span class="bdot"></span> Checking</div>
-                    </div>
-                </div>
-                <div class="hc-details">
-                    <div class="hc-latency">Latency: <span>--</span></div>
-                    <div class="hc-type">Frontend</div>
-                </div>
-                <div class="hc-checked">Last checked: --</div>
-            </div>
-
-            <div class="health-card" id="card-n8n">
-                <div class="hc-top">
-                    <div class="hc-icon n8n">&#x2699;&#xFE0F;</div>
-                    <div>
-                        <div class="hc-name">n8n Cloud</div>
-                        <div class="hc-badge checking"><span class="bdot"></span> Checking</div>
-                    </div>
-                </div>
-                <div class="hc-details">
-                    <div class="hc-latency">Latency: <span>--</span></div>
-                    <div class="hc-type">Orchestration</div>
-                </div>
-                <div class="hc-checked">Last checked: --</div>
-            </div>
-
-            <div class="health-card" id="card-claude">
-                <div class="hc-top">
-                    <div class="hc-icon claude">&#x1F9E0;</div>
-                    <div>
-                        <div class="hc-name">Claude API</div>
-                        <div class="hc-badge checking"><span class="bdot"></span> Checking</div>
-                    </div>
-                </div>
-                <div class="hc-details">
-                    <div class="hc-latency">Latency: <span>--</span></div>
-                    <div class="hc-type">AI</div>
-                </div>
-                <div class="hc-checked">Last checked: --</div>
-            </div>
-
-            <div class="health-card" id="card-sheets">
-                <div class="hc-top">
-                    <div class="hc-icon sheets">&#x1F4CA;</div>
-                    <div>
-                        <div class="hc-name">Google Sheets</div>
-                        <div class="hc-badge checking"><span class="bdot"></span> Checking</div>
-                    </div>
-                </div>
-                <div class="hc-details">
-                    <div class="hc-latency">Latency: <span>--</span></div>
-                    <div class="hc-type">Database</div>
-                </div>
-                <div class="hc-checked">Last checked: --</div>
-            </div>
-
-            <div class="health-card" id="card-pinecone">
-                <div class="hc-top">
-                    <div class="hc-icon pine">&#x1F333;</div>
-                    <div>
-                        <div class="hc-name">Pinecone</div>
-                        <div class="hc-badge checking"><span class="bdot"></span> Checking</div>
-                    </div>
-                </div>
-                <div class="hc-details">
-                    <div class="hc-latency">Latency: <span>--</span></div>
-                    <div class="hc-type">Vector DB</div>
-                </div>
-                <div class="hc-checked">Last checked: --</div>
-            </div>
-
-            <div class="health-card" id="card-drive">
-                <div class="hc-top">
-                    <div class="hc-icon drive">&#x1F4C1;</div>
-                    <div>
-                        <div class="hc-name">Google Drive</div>
-                        <div class="hc-badge checking"><span class="bdot"></span> Checking</div>
-                    </div>
-                </div>
-                <div class="hc-details">
-                    <div class="hc-latency">Latency: <span>--</span></div>
-                    <div class="hc-type">Storage</div>
-                </div>
-                <div class="hc-checked">Last checked: --</div>
-            </div>
-
-            <div class="health-card" id="card-forms">
-                <div class="hc-top">
-                    <div class="hc-icon forms">&#x1F4DD;</div>
-                    <div>
-                        <div class="hc-name">Google Forms</div>
-                        <div class="hc-badge checking"><span class="bdot"></span> Checking</div>
-                    </div>
-                </div>
-                <div class="hc-details">
-                    <div class="hc-latency">Latency: <span>--</span></div>
-                    <div class="hc-type">Forms</div>
-                </div>
-                <div class="hc-checked">Last checked: --</div>
-            </div>
-
-        </div>
-    </section>
-
-</div>
-
-<!-- Footer -->
-<div class="footer">
-    <div class="footer-content">
-        <div class="footer-links">
-            <a href="index.html" class="footer-link">Portal Home</a>
-            <a href="https://edenger.app.n8n.cloud" target="_blank" class="footer-link">n8n Workflows</a>
-            <a href="https://docs.google.com/spreadsheets/d/1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w/edit" target="_blank" class="footer-link">Google Sheet</a>
-        </div>
-        <div class="footer-text">&copy; 2026 My Product Agent. System Architecture Dashboard.</div>
+  <div class="status-bar">
+    <div class="status-summary">
+      <span class="status-pill status-pill-ok" id="overall-status"><span class="status-dot status-dot-checking"></span> Checking services...</span>
+      <span class="last-checked" id="last-checked"></span>
     </div>
+    <button class="refresh-btn" id="refresh-btn" onclick="runHealthChecks()"><span class="refresh-icon">&#8635;</span> Refresh</button>
+  </div>
+  <div class="section">
+    <div class="section-header"><span class="section-title">Platform Architecture (3 Layers)</span><span class="section-badge">Live Status</span></div>
+    <div class="arch-diagram">
+      <div class="arch-layer">
+        <div class="arch-layer-label">Layer 1 &mdash; Frontend (GitHub Pages)<div class="arch-layer-line"></div></div>
+        <div class="arch-nodes">
+          <div class="arch-node arch-node-primary">index.html (PM Dashboard)</div>
+          <div class="arch-node">create_project.html</div><div class="arch-node">describe_idea.html</div>
+          <div class="arch-node">upload_content.html</div><div class="arch-node">interview_tracker.html</div>
+          <div class="arch-node">rag_management.html</div><div class="arch-node">commerce_expert.html</div>
+          <div class="arch-node">project_wizard.html</div><div class="arch-node">master_dashboard.html</div>
+        </div>
+      </div>
+      <div class="arch-flow"><span class="arch-arrow">&darr; Webhooks + gviz &nbsp;&nbsp;&nbsp;&nbsp; POST JSON/FormData &darr;</span></div>
+      <div class="arch-layer">
+        <div class="arch-layer-label">Layer 2 &mdash; Orchestration (n8n Cloud)<div class="arch-layer-line"></div></div>
+        <div class="arch-nodes">
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>Stage 2 Analyzer</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>Signal Ingestion</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>Score Recalculator</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>Knowledge Base</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>PRD Generator</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>Survey Generator</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>Competitor Scraper</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="n8n"></span>Project Scaffolding</div>
+        </div>
+      </div>
+      <div class="arch-flow"><span class="arch-arrow">&darr; Anthropic API &nbsp;&nbsp; Google Sheets API &nbsp;&nbsp; Pinecone API &darr;</span></div>
+      <div class="arch-layer">
+        <div class="arch-layer-label">Layer 3 &mdash; Data & AI Services<div class="arch-layer-line"></div></div>
+        <div class="arch-nodes">
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="claude"></span>Claude API (Sonnet)</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="sheets"></span>Google Sheets</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="pinecone"></span>Pinecone (3 RAGs)</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="drive"></span>Google Drive</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="forms"></span>Google Forms</div>
+          <div class="arch-node arch-node-service"><span class="health-dot" data-svc="github"></span>GitHub (Pages + Repo)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header"><span class="section-title">Service Health</span><span class="section-badge" id="health-count">7 services</span></div>
+    <div class="health-grid" id="health-grid"></div>
+  </div>
+  <div class="section">
+    <div class="section-header"><span class="section-title">Workflow Details</span><span class="section-badge">13 workflows</span></div>
+    <div class="workflow-grid" id="workflow-grid"></div>
+  </div>
 </div>
-
+<div class="footer">
+  My Product Agent &mdash; Zuora Commerce Intelligence Platform &middot;
+  <a href="index.html">PM Dashboard</a> &middot; <a href="master_dashboard.html">Multi-Project View</a> &middot; <a href="rag_notebook_template.html">RAG Management</a>
+</div>
 <script>
-// Service health check configuration
-const services = {
-    github: {
-        name: 'GitHub Pages',
-        url: 'index.html',
-        mode: 'cors',
-        method: 'HEAD'
-    },
-    n8n: {
-        name: 'n8n Cloud',
-        url: 'https://edenger.app.n8n.cloud',
-        mode: 'no-cors'
-    },
-    claude: {
-        name: 'Claude API',
-        url: 'https://api.anthropic.com',
-        mode: 'no-cors'
-    },
-    sheets: {
-        name: 'Google Sheets',
-        url: 'https://docs.google.com/spreadsheets/d/1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w/gviz/tq?tqx=out:json',
-        mode: 'cors'
-    },
-    pinecone: {
-        name: 'Pinecone',
-        url: 'https://commerce-expert-8t9sj7i.svc.aped-4627-b74a.pinecone.io',
-        mode: 'no-cors'
-    },
-    drive: {
-        name: 'Google Drive',
-        url: 'https://www.googleapis.com/drive/v3/about',
-        mode: 'no-cors'
-    },
-    forms: {
-        name: 'Google Forms',
-        url: 'https://forms.googleapis.com',
-        mode: 'no-cors'
-    }
-};
-
-// State
-const healthState = {};
-
-function formatTime(d) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function updateCard(key, status, latency) {
-    const card = document.getElementById('card-' + key);
-    if (!card) return;
-
-    const badge = card.querySelector('.hc-badge');
-    const latEl = card.querySelector('.hc-latency span');
-    const checkedEl = card.querySelector('.hc-checked');
-
-    // Status badge
-    badge.className = 'hc-badge ' + status;
-    const labels = { checking: 'Checking', healthy: 'Operational', slow: 'Slow', down: 'Unreachable' };
-    badge.innerHTML = '<span class="bdot"></span> ' + (labels[status] || status);
-
-    // Latency
-    latEl.textContent = latency !== null ? latency + ' ms' : '--';
-
-    // Last checked
-    checkedEl.textContent = 'Last checked: ' + formatTime(new Date());
-
-    // Store state
-    healthState[key] = { status, latency };
-}
-
-// Update all architecture diagram dots and workflow service dots
-function updateDots() {
-    document.querySelectorAll('[data-svc]').forEach(dot => {
-        const svc = dot.getAttribute('data-svc');
-        const st = healthState[svc];
-        dot.className = 'sdot' + (st ? ' ' + st.status : '');
-    });
-}
-
-// Overall status
-function updateOverall() {
-    const dot = document.getElementById('overallDot');
-    const label = document.getElementById('overallLabel');
-    const checked = document.getElementById('lastChecked');
-    const states = Object.values(healthState);
-
-    if (states.length === 0) return;
-
-    const downCount = states.filter(s => s.status === 'down').length;
-    const slowCount = states.filter(s => s.status === 'slow').length;
-
-    if (downCount > 0) {
-        dot.className = 'overall-dot down';
-        label.textContent = downCount + ' service' + (downCount > 1 ? 's' : '') + ' unreachable';
-    } else if (slowCount > 0) {
-        dot.className = 'overall-dot degraded';
-        label.textContent = 'Degraded \u2014 ' + slowCount + ' slow';
-    } else {
-        dot.className = 'overall-dot healthy';
-        label.textContent = 'All Systems Operational';
-    }
-    checked.textContent = 'Last checked: ' + formatTime(new Date());
-}
-
-async function checkService(key) {
-    const svc = services[key];
-    const start = performance.now();
-
-    try {
-        const opts = { method: svc.method || 'GET', mode: svc.mode || 'cors' };
-        if (svc.mode === 'no-cors') {
-            opts.cache = 'no-store';
-        }
-        await fetch(svc.url, opts);
-        const latency = Math.round(performance.now() - start);
-        const status = latency > 2000 ? 'slow' : 'healthy';
-        updateCard(key, status, latency);
-    } catch (e) {
-        const latency = Math.round(performance.now() - start);
-        updateCard(key, 'down', latency);
-    }
-}
-
-async function runAllChecks() {
-    const btn = document.getElementById('refreshBtn');
-    btn.classList.add('spinning');
-
-    // Reset all to checking
-    Object.keys(services).forEach(k => updateCard(k, 'checking', null));
-
-    // Run in parallel
-    await Promise.allSettled(Object.keys(services).map(k => checkService(k)));
-
-    updateDots();
-    updateOverall();
-    btn.classList.remove('spinning');
-}
-
-// Run on load
-runAllChecks();
-
-// Auto-refresh every 60 seconds
-setInterval(runAllChecks, 60000);
+var SERVICES=[{id:'github',name:'GitHub Pages',url:'index.html',method:'cors',type:'Frontend'},{id:'n8n',name:'n8n Cloud',url:'https://edenger.app.n8n.cloud',method:'no-cors',type:'Orchestration'},{id:'claude',name:'Claude API',url:'https://api.anthropic.com',method:'no-cors',type:'AI'},{id:'sheets',name:'Google Sheets',url:'https://docs.google.com/spreadsheets/d/1pioLz-mtObrcQq1126PmUAVg9QCs2plAyvp5oRXVK8w/gviz/tq?tqx=out:json&sheet=capabilities'tq=select+A+limit+1',method:'cors',type:'Data'},{id:'pinecone',name:'Pinecone',url:'https://commerce-expert-8t9sj7i.svc.aped-4627-b74a.pinecone.io',method:'no-cors',type:'Vector DB'},{id:'drive',name:'Google Drive',url:'https://www.googleapis.com/drive/v3/about',method:'no-cors',type:'Storage'},{id:'forms',name:'Google Forms',url:'https://forms.googleapis.com',method:'no-cors',type:'Surveys'}];
+var WORKFLOWS=[{name:'MPA Stage 2 Parallel Analyzer',endpoint:'/webhook/mpa-analyze-idea',services:['Claude','Pinecone','Sheets'],output:'_stage2_results + score',status:'FIXING'},{name:'Signal Ingestion',endpoint:'/webhook/mpa-ingest-signal',services:['Claude','Sheets','Pinecone'],output:'signal_log + PM Master RAG',status:'IMPORTED'},{name:'Score Recalculator',endpoint:'/webhook/mpa-recalculate-scores',services:['Sheets'],output:'capabilities (updated scores)',status:'IMPORTED'},{name:'Knowledge Base',endpoint:'/webhook/mpa-knowledge-base',services:['Claude','Pinecone'],output:'NL query response',status:'IMPORTED'},{name:'RAG Transcript Analyzer',endpoint:'Form trigger',services:['Claude','Sheets'],output:'interviews + signals',status:'WORKING'},{name:'Competitor Scraper',endpoint:'/webhook/mpa-scrape',services:['HTTP','Claude','Pinecone','Sheets'],output:'Competition RAG vectors',status:'IMPORTED'},{name:'PRD Generator',endpoint:'/webhook/mpa-generate-prd',services:['Claude','Sheets','GitHub'],output:'PRD.md on branch',status:'IMPORTED'},{name:'Survey Generator',endpoint:'/webhook/mpa-generate-survey',services:['Claude','Sheets','Forms'],output:'Survey questions + URL',status:'BUILT'},{name:'Survey Ingestion',endpoint:'Form response',services:['Claude','Sheets','Pinecone'],output:'Signals from survey',status:'IMPORTED'},{name:'Project Scaffolding',endpoint:'/webhook/mpa-create-project',services:['Drive','Sheets','GitHub'],output:'Folder + project row + branch',status:'IMPORTED'},{name:'Zoom Transcript Extractor',endpoint:'/webhook/mpa-zoom',services:['Claude','Sheets'],output:'Transcript + signals',status:'IMPORTED'},{name:'Weekly Report',endpoint:'Cron (weekly)',services:['Sheets','Email'],output:'Dashboard email summary',status:'IMPORTED'},{name:'Score Alerting',endpoint:'After recalc',services:['Sheets','Notification'],output:'Score change alerts',status:'IMPORTED'}];
+var healthResults={};
+async function checkService(svc){var start=performance.now();try{if(svc.method==='cors'){var resp=await fetch(svc.url,{method:'HEAD',cache:'no-cache'});var latency=Math.round(performance.now()-start);return{id:svc.id,status:resp.ok?'ok':'down',latency:latency,checked:new Date()};}else{await fetch(svc.url,{mode:'no-cors',cache:'no-cache'});var latency=Math.round(performance.now()-start);return{id:svc.id,status:latency>2000?'slow':'ok',latency:latency,checked:new Date()};}}catch(e){var latency=Math.round(performance.now()-start);return{id:svc.id,status:'down',latency:latency,checked:new Date()};}}
+async function runHealthChecks(){var btn=document.getElementById('refresh-btn');btn.classList.add('spinning');document.querySelectorAll('.health-dot').forEach(function(d){d.className='health-dot status-dot-checking';d.style.background='';});var results=await Promise.allSettled(SERVICES.map(function(s){return checkService(s);}));results.forEach(function(r){if(r.status==='fulfilled')healthResults[r.value.id]=r.value;});renderHealth();updateOverallStatus();btn.classList.remove('spinning');document.getElementById('last-checked').textContent='Last checked: '+new Date().toLocaleTimeString();}
+function renderHealth(){var grid=document.getElementById('health-grid');grid.innerHTML=SERVICES.map(function(svc){var r=healthResults[svc.id]||{status:'checking',latency:'-'};var badgeClass=r.status==='ok'?'health-badge-ok':r.status==='slow'?'health-badge-slow':r.status==='down'?'health-badge-down':'health-badge-checking';var badgeText=r.status==='ok'?'Healthy':r.status==='slow'?'Slow':r.status==='down'?'Unreachable':'Checking...';return'<div class="health-card"><div class="health-card-header"><span class="health-name">'+svc.name+'</span><span class="health-badge '+badgeClass+'">'+badgeText+'</span></div><div class="health-detail"><span>Latency</span><span>'+(typeof r.latency==='number'?r.latency+' ms':'...')+'</span></div><span class="health-type">'+svc.type+'</span></div>';}).join('');SERVICES.forEach(function(svc){var r=healthResults[svc.id];var dots=document.querySelectorAll('[data-svc="'+svc.id+'"]');dots.forEach(function(dot){if(r){dot.className='health-dot';dot.style.background=r.status==='ok'?'var(--success)':r.status==='slow'?'var(--warning)':'var(--danger)';}});});}
+function updateOverallStatus(){var el=document.getElementById('overall-status');var results=Object.values(healthResults);var ok=results.filter(function(r){return r.status==='ok';}).length;var total=SERVICES.length;if(ok===total){el.className='status-pill status-pill-ok';el.innerHTML='<span class="status-dot status-dot-ok"></span> All '+total+' services operational';}else if(ok>total/2){el.className='status-pill status-pill-warn';el.innerHTML='<span class="status-dot status-dot-warn"></span> '+ok+'/'+total+' services operational';}else{el.className='status-pill status-pill-err';el.innerHTML='<span class="status-dot status-dot-err"></span> '+ok+'/'+total+' services operational';}}
+function renderWorkflows(){var grid=document.getElementById('workflow-grid');var statusColors={'WORKING':'var(--success)','BUILT':'var(--success)','IMPORTED':'var(--primary-light)','FIXING':'var(--warning)','TO BUILD':'var(--danger)'};grid.innerHTML=WORKFLOWS.map(function(wf){var svcTags=wf.services.map(function(s){var svcId=s.toLowerCase().replace(/\s+/g,'');var r=healthResults[svcId];var dotColor=r?(r.status==='ok'?'var(--success)':r.status==='slow'?'var(--warning)':'var(--danger)'):'var(--text-light)';return'<span class="wf-svc-tag"><span class="wf-svc-dot" style="background:'+dotColor+';"></span>'+s+'</span>';}).join('');var stColor=statusColors[wf.status]||'var(--text-light)';return'<div class="workflow-card"><div class="wf-name">'+wf.name+'</div><div class="wf-row"><span class="wf-label">Trigger</span><span class="wf-endpoint">'+wf.endpoint+'</span></div><div class="wf-row"><span class="wf-label">Services</span><div class="wf-services">'+svcTags+'</div></div><div class="wf-row"><span class="wf-label">Output</span><span class="wf-value">'+wf.output+'</span></div><div class="wf-row"><span class="wf-label">Status</span><span style="font-weight:700;color:'+stColor+';">'+wf.status+'</span></div></div>';}).join('');}
+renderHealth();renderWorkflows();runHealthChecks();setInterval(runHealthChecks,60000);
 </script>
-
 </body>
 </html>
